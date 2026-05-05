@@ -1,24 +1,22 @@
 import { useState } from "react";
 import "./styles.css";
 import "./catalogo.css";
+import { categories, initialMenuItems } from "./data/menu";
 
-const products = [
-  { id: 1, name: "Combo Brasa", description: "Hambúrguer artesanal, batata crocante e bebida.", price: 29.9, image: "/images/combo-brasa.png" },
-  { id: 2, name: "Burger Brasa", description: "Pão, carne, queijo e molho especial.", price: 18.9, image: "/images/burger-brasa.png" },
-  { id: 3, name: "Chicken Crisp", description: "Frango crocante, queijo e molho da casa.", price: 19.9, image: "/images/chicken-crisp.png" },
-  { id: 4, name: "Hero Burger", description: "Burger especial da casa com muito sabor.", price: 26.9, image: "/images/hero-burger.png" },
-  { id: 5, name: "Brownie Duplo", description: "Brownie de chocolate com cobertura cremosa.", price: 11.9, image: "/images/brownie-duplo.png" },
-  { id: 6, name: "Milkshake Cacau", description: "Milkshake cremoso de chocolate.", price: 16.9, image: "/images/milkshake-cacau.png" },
-  { id: 7, name: "Soda Cítrica", description: "Bebida refrescante com limão e hortelã.", price: 9.9, image: "/images/soda-citrica.png" }
-];
+const products = initialMenuItems;
+const featuredProduct = products.find((product) => product.combo) ?? products[0];
 
 export default function App() {
   const [screen, setScreen] = useState("login");
   const [cart, setCart] = useState([]);
   const [phone, setPhone] = useState("");
+  const [activeCategory, setActiveCategory] = useState("todos");
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const filteredProducts = activeCategory === "todos"
+    ? products
+    : products.filter((product) => product.category === activeCategory);
 
   function money(value) {
     return value.toLocaleString("pt-BR", {
@@ -28,10 +26,14 @@ export default function App() {
   }
 
   function addToCart(product) {
+    if (product.stock === 0) return;
+
     setCart((currentCart) => {
       const existing = currentCart.find((item) => item.id === product.id);
 
       if (existing) {
+        if (existing.quantity >= product.stock) return currentCart;
+
         return currentCart.map((item) =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
@@ -60,6 +62,8 @@ export default function App() {
   }
 
   function animateAndAdd(event, product) {
+    if (product.stock === 0) return;
+
     event.currentTarget.classList.add("clicked");
 
     setTimeout(() => {
@@ -88,8 +92,9 @@ export default function App() {
           <header className="hero">
             <div className="hero-top">
               <div>
-                <span className="eyebrow">Peça agora</span>
+                <span className="eyebrow">Peca agora</span>
                 <h1>Brasa Go</h1>
+                <p>Lanches, combos e sobremesas preparados na hora.</p>
               </div>
 
               <div className="brand-badge">BG</div>
@@ -97,58 +102,98 @@ export default function App() {
           </header>
 
           <section className="promo-card">
-            <img className="promo-bg" src="/images/combo-brasa.png" alt="Combo Brasa" />
+            <img className="promo-bg" src={featuredProduct.image} alt={featuredProduct.name} />
 
             <div className="promo-overlay">
               <span>Oferta do dia</span>
-              <strong>Combo Brasa</strong>
-              <p>Hambúrguer + batata + bebida</p>
-              <div className="promo-price">{money(products[0].price)}</div>
+              <strong>{featuredProduct.name}</strong>
+              <p>{featuredProduct.description}</p>
 
-              <button onClick={(event) => animateAndAdd(event, products[0])}>
-                Adicionar
-              </button>
+              <div className="promo-actions">
+                <div className="promo-price">{money(featuredProduct.price)}</div>
+
+                <button onClick={(event) => animateAndAdd(event, featuredProduct)}>
+                  Adicionar
+                </button>
+              </div>
             </div>
           </section>
 
           <nav className="categories">
-            <button className="active">Todos</button>
-            <button>Combos</button>
-            <button>Lanches</button>
-            <button>Bebidas</button>
-            <button>Sobremesas</button>
+            <button
+              className={activeCategory === "todos" ? "active" : ""}
+              onClick={() => setActiveCategory("todos")}
+            >
+              Todos
+            </button>
+
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                className={activeCategory === category.id ? "active" : ""}
+                onClick={() => setActiveCategory(category.id)}
+              >
+                {category.label}
+              </button>
+            ))}
           </nav>
 
           <section className="section-title">
-            <h2>Cardápio</h2>
+            <div>
+              <span className="eyebrow">Cardapio</span>
+              <h2>Escolha seu pedido</h2>
+            </div>
+
+            <strong>{filteredProducts.length} itens</strong>
           </section>
 
           <section className="products">
-            {products.map((product) => (
-              <article className="product-card" key={product.id}>
-                <img className="product-img" src={product.image} alt={product.name} />
+            {filteredProducts.map((product) => {
+              const unavailable = product.stock === 0;
+              const cartItem = cart.find((item) => item.id === product.id);
 
-                <div className="product-info">
-                  <h3>{product.name}</h3>
-                  <p>{product.description}</p>
-                  <span className="product-price">{money(product.price)}</span>
-                </div>
+              return (
+                <article className={`product-card ${unavailable ? "is-unavailable" : ""}`} key={product.id}>
+                  <div className="product-media">
+                    <img className="product-img" src={product.image} alt={product.name} />
+                    <span>{product.categoryLabel}</span>
+                  </div>
 
-                <button
-                  className="add-btn"
-                  onClick={(event) => animateAndAdd(event, product)}
-                >
-                  +
-                </button>
-              </article>
-            ))}
+                  <div className="product-info">
+                    <div className="product-heading">
+                      <h3>{product.name}</h3>
+                      <span className="product-price">{money(product.price)}</span>
+                    </div>
+
+                    <p>{product.description}</p>
+
+                    <div className="product-meta">
+                      {product.promo && <span>Oferta</span>}
+                      {product.combo && <span>Combo</span>}
+                      <span>{unavailable ? "Indisponivel" : `${product.stock} un.`}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    className="add-btn"
+                    onClick={(event) => animateAndAdd(event, product)}
+                    disabled={unavailable}
+                    aria-label={`Adicionar ${product.name}`}
+                  >
+                    {cartItem ? cartItem.quantity : "+"}
+                  </button>
+                </article>
+              );
+            })}
           </section>
         </main>
 
         <footer className="cart-bar">
           <div>
+            <span>{totalItems} {totalItems === 1 ? "item" : "itens"}</span>
             <strong>{money(total)}</strong>
           </div>
+
           <button
             onClick={() => setScreen("cart")}
             disabled={cart.length === 0}
@@ -164,7 +209,9 @@ export default function App() {
     return (
       <main className="app-shell cart-page">
         <header className="cart-header">
-          <button onClick={() => setScreen("catalogo")}>←</button>
+          <button onClick={() => setScreen("catalogo")} aria-label="Voltar">
+            {"<"}
+          </button>
           <div>
             <span className="eyebrow">Seu pedido</span>
             <h1>Carrinho</h1>
@@ -175,7 +222,7 @@ export default function App() {
           <section className="empty-cart">
             <h2>Carrinho vazio</h2>
             <p>Adicione produtos para continuar.</p>
-            <button onClick={() => setScreen("catalogo")}>Voltar ao cardápio</button>
+            <button onClick={() => setScreen("catalogo")}>Voltar ao cardapio</button>
           </section>
         ) : (
           <>
@@ -221,8 +268,7 @@ export default function App() {
 
   return (
     <main className="phone-stage">
-
-            <section className="app-phone">
+      <section className="app-phone">
         <div className="hero-panel">
           <header className="brand-bar">
             <div className="brand-mark">
@@ -278,7 +324,7 @@ export default function App() {
             <button className="secondary-cta">Entrar com e-mail</button>
 
             <p className="terms">
-              Ao continuar, você aceita os termos do Brasa Go.
+              Ao continuar, voce aceita os termos do Brasa Go.
             </p>
           </div>
         </section>
