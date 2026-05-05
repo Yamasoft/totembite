@@ -143,8 +143,6 @@ export default function App() {
               <span className="eyebrow">Cardapio</span>
               <h2>Escolha seu pedido</h2>
             </div>
-
-            <strong>{filteredProducts.length} itens</strong>
           </section>
 
           <section className="products">
@@ -167,14 +165,26 @@ export default function App() {
                     <p>{product.description}</p>
                   </div>
 
-                  <button
-                    className="add-btn"
-                    onClick={(event) => animateAndAdd(event, product)}
-                    disabled={unavailable}
-                    aria-label={`Adicionar ${product.name}`}
-                  >
-                    {cartItem ? cartItem.quantity : "+"}
-                  </button>
+                  {cartItem ? (
+                    <div className="menu-qty-control" aria-label={`Quantidade de ${product.name}`}>
+                      <button onClick={() => decreaseFromCart(product.id)} aria-label={`Remover ${product.name}`}>
+                        -
+                      </button>
+                      <strong>{cartItem.quantity}</strong>
+                      <button onClick={() => addToCart(product)} aria-label={`Adicionar ${product.name}`}>
+                        +
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="add-btn"
+                      onClick={(event) => animateAndAdd(event, product)}
+                      disabled={unavailable}
+                      aria-label={`Adicionar ${product.name}`}
+                    >
+                      +
+                    </button>
+                  )}
                 </article>
               );
             })}
