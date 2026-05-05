@@ -28,7 +28,7 @@ const paymentMethods = [
     description: "Pague na retirada do pedido."
   }
 ];
-const orderStatusSteps = ["received", "preparing", "ready"];
+const orderStatusSteps = ["received", "preparing", "ready", "finished"];
 
 function initialScreenFromPath() {
   if (window.location.pathname === "/cozinha") return "kitchen";
@@ -261,20 +261,22 @@ export default function App() {
     setKitchenOrders((currentOrders) =>
       currentOrders
         .map((order) => (order.id === orderId ? updated : order))
-        .filter((order) => order.status !== "ready" && order.status !== "delivery")
+        .filter((order) => order.status !== "finished")
     );
   }
 
   function nextKitchenStatus(status) {
     if (status === "received") return "preparing";
     if (status === "preparing") return "ready";
-    return "ready";
+    if (status === "ready") return "finished";
+    return "finished";
   }
 
   function nextKitchenLabel(status) {
     if (status === "received") return "Tocar para iniciar preparo";
     if (status === "preparing") return "Tocar para marcar pronto";
-    return "Pedido pronto";
+    if (status === "ready") return "Cliente retirou? Tocar para finalizar";
+    return "Pedido finalizado";
   }
 
   function advanceKitchenStatus(order) {
@@ -556,6 +558,7 @@ export default function App() {
                   {status === "received" && "Recebido pela cozinha"}
                   {status === "preparing" && "Em preparo"}
                   {status === "ready" && "Pronto para retirada"}
+                  {status === "finished" && "Retirado / Finalizado"}
                 </strong>
               </div>
             ))}
@@ -572,9 +575,6 @@ export default function App() {
             </div>
           </div>
 
-          {trackingToken && (
-            <p className="tracking-link">Link de acompanhamento: /s/{trackingToken}</p>
-          )}
           {orderError && <p className="payment-error">{orderError}</p>}
 
           <button onClick={() => navigateTo("catalogo")}>Fazer novo pedido</button>
@@ -643,6 +643,11 @@ export default function App() {
                   <button onClick={() => changeKitchenStatus(order.id, "ready")}>
                     {kitchenStatuses.ready || "Pronto para retirada"}
                   </button>
+                  {order.status === "ready" && (
+                    <button onClick={() => changeKitchenStatus(order.id, "finished")}>
+                      {kitchenStatuses.finished || "Finalizado"}
+                    </button>
+                  )}
                 </div>
               </article>
             ))

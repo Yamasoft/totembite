@@ -161,7 +161,7 @@ ORDER_STATUSES = {
     "received": "Recebido pela cozinha",
     "preparing": "Em preparo",
     "ready": "Pronto para retirada",
-    "delivery": "Saiu para entrega",
+    "finished": "Retirado / Finalizado",
 }
 
 
@@ -701,7 +701,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 rows = conn.execute(
                     """
                     SELECT * FROM orders
-                    WHERE status IN ('received', 'preparing')
+                    WHERE status IN ('received', 'preparing', 'ready')
                     ORDER BY created_at ASC
                     LIMIT 50
                     """

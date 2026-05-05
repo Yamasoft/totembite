@@ -946,16 +946,6 @@
   background: var(--red);
 }
 
-.tracking-link {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #faf7f2;
-  color: var(--muted);
-  font-size: 0.82rem;
-  word-break: break-all;
-}
-
 .kitchen-page {
   padding-bottom: 28px;
   width: min(920px, 100%);
@@ -1100,6 +1090,23 @@
 
 .kitchen-order.status-preparing .kitchen-next-action span {
   color: rgba(255, 255, 255, 0.72);
+}
+
+.kitchen-order.status-ready {
+  border-color: rgba(17, 107, 59, 0.26);
+  box-shadow: 0 16px 34px rgba(17, 107, 59, 0.13);
+}
+
+.kitchen-order.status-ready .kitchen-next-action {
+  background: #116b3b;
+}
+
+.kitchen-order.status-ready .kitchen-next-action strong {
+  color: #fff;
+}
+
+.kitchen-order.status-ready .kitchen-next-action span {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 @media (max-width: 430px) {
