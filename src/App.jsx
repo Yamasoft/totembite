@@ -529,12 +529,13 @@ export default function App() {
   if (screen === "tracking") {
     const order = trackedOrder || lastOrder;
     const currentStep = Math.max(0, orderStatusSteps.indexOf(order?.status || "received"));
+    const isPreparing = order?.status === "preparing";
     const isReady = order?.status === "ready";
     const isFinished = order?.status === "finished";
 
     return (
       <main className="app-shell success-page tracking-page">
-        <section className={`order-success ${isReady ? "is-ready" : ""} ${isFinished ? "is-finished" : ""}`}>
+        <section className={`order-success ${isPreparing ? "is-preparing" : ""} ${isReady ? "is-ready" : ""} ${isFinished ? "is-finished" : ""}`}>
           <div className="tracking-status-card">
             <span className="eyebrow">{isFinished ? "Pedido encerrado" : "Status atualizado automaticamente"}</span>
             <strong>{order?.statusLabel ?? "Aguardando cozinha"}</strong>

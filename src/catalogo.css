@@ -853,6 +853,19 @@
   background: #116b3b;
 }
 
+.order-success.is-preparing .tracking-status-card {
+  background: var(--yellow);
+  color: var(--red-dark);
+}
+
+.order-success.is-preparing .tracking-status-card .eyebrow {
+  color: var(--red-dark);
+}
+
+.order-success.is-preparing .tracking-status-card p {
+  color: rgba(34, 23, 19, 0.76);
+}
+
 .order-success.is-finished .tracking-status-card {
   background: #201716;
 }
@@ -1092,20 +1105,20 @@
 }
 
 .kitchen-order.status-preparing {
-  border-color: rgba(200, 25, 24, 0.2);
-  box-shadow: 0 16px 34px rgba(200, 25, 24, 0.12);
+  border-color: rgba(255, 199, 44, 0.62);
+  box-shadow: 0 16px 34px rgba(255, 199, 44, 0.2);
 }
 
 .kitchen-order.status-preparing .kitchen-next-action {
-  background: #201716;
+  background: var(--yellow);
 }
 
 .kitchen-order.status-preparing .kitchen-next-action strong {
-  color: #fff;
+  color: var(--red-dark);
 }
 
 .kitchen-order.status-preparing .kitchen-next-action span {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(34, 23, 19, 0.7);
 }
 
 .kitchen-order.status-ready {
