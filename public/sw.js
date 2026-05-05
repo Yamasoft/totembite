@@ -1,4 +1,4 @@
-const CACHE_NAME = 'totem-bite-shell-v5'
+const CACHE_NAME = 'totem-bite-shell-v6'
 const PRECACHE_URLS = [
   '/',
   '/index.html',

@@ -125,17 +125,18 @@
     <main>
       <header>
         <h1>Pedido Direto</h1>
-        <p>Escaneie este QR pelo Android e toque em instalar para abrir sem barra de endereco.</p>
+        <p>Instale o app Android para abrir em tela cheia, sem barra do Chrome.</p>
       </header>
 
       <section class="qr-panel">
         <img src="/install-qr.png" alt="QR Code para abrir a instalacao do app" />
-        <button id="install" class="action" type="button" disabled>Instalar app</button>
-        <a class="action secondary" href="/">Abrir agora</a>
+        <a class="action" href="/totem-bite.apk" download>Baixar app tela cheia</a>
+        <button id="install" class="action secondary" type="button" disabled>Instalar pelo Chrome</button>
+        <a class="action secondary" href="/">Abrir no navegador</a>
       </section>
 
       <section class="status">
-        <p id="message" class="note">Verificando se o navegador permite instalacao direta...</p>
+        <p id="message" class="note">Use o botao principal para baixar o APK. Se o Android bloquear, permita instalar apps deste navegador.</p>
         <p><code id="current-url">Carregando link...</code></p>
       </section>
     </main>
