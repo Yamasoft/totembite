@@ -153,6 +153,21 @@ export function createOrder(order) {
   })
 }
 
+export function fetchPublicOrderStatus(token) {
+  return request(`/api/status/${encodeURIComponent(token)}`)
+}
+
+export function fetchKitchenOrders() {
+  return request('/api/kitchen/orders')
+}
+
+export function updateKitchenOrderStatus(orderId, status) {
+  return request(`/api/kitchen/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  })
+}
+
 export function updateOrderPayment(orderId, token) {
   return request(`/api/orders/${orderId}/payment`, {
     method: 'PUT',

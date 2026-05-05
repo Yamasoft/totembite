@@ -157,6 +157,13 @@ PAYMENT_METHODS = [
     {"id": "cash", "label": "Dinheiro", "description": "Pagamento em maos na entrega ou retirada"},
 ]
 
+ORDER_STATUSES = {
+    "received": "Recebido pela cozinha",
+    "preparing": "Em preparo",
+    "ready": "Pronto para retirada",
+    "delivery": "Saiu para entrega",
+}
+
 
 def now_iso():
     return datetime.utcnow().isoformat()
@@ -275,7 +282,9 @@ def apply_migrations():
               payment_method TEXT NOT NULL DEFAULT 'pix',
               payment_status TEXT NOT NULL DEFAULT 'pending',
               pix_txid TEXT,
-              pix_payload TEXT
+              pix_payload TEXT,
+              status_token TEXT,
+              status_updated_at TEXT
             );
 
             CREATE TABLE IF NOT EXISTS order_items (
@@ -312,6 +321,10 @@ def apply_migrations():
             conn.execute("ALTER TABLE orders ADD COLUMN pix_txid TEXT")
         if "pix_payload" not in order_columns:
             conn.execute("ALTER TABLE orders ADD COLUMN pix_payload TEXT")
+        if "status_token" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN status_token TEXT")
+        if "status_updated_at" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN status_updated_at TEXT")
         if "reset_code" not in customer_columns:
             conn.execute("ALTER TABLE customer_users ADD COLUMN reset_code TEXT")
         if "reset_requested_at" not in customer_columns:
@@ -463,6 +476,7 @@ def row_to_order(conn, row):
     ).fetchall()
     return {
         "id": row["id"],
+        "number": row["id"].split("-")[-1][-3:],
         "createdAt": row["created_at"],
         "customerId": row["customer_id"],
         "customerEmail": row["customer_email"],
@@ -473,11 +487,14 @@ def row_to_order(conn, row):
         "subtotal": row["subtotal"],
         "deliveryFee": row["delivery_fee"],
         "total": row["total"],
-                "status": row["status"],
-                "paymentMethod": row["payment_method"],
-                "paymentStatus": row["payment_status"],
-                "pixTxid": row["pix_txid"] if "pix_txid" in row.keys() else None,
-                "items": [
+        "status": row["status"],
+        "statusLabel": ORDER_STATUSES.get(row["status"], row["status"]),
+        "statusToken": row["status_token"] if "status_token" in row.keys() else None,
+        "statusUpdatedAt": row["status_updated_at"] if "status_updated_at" in row.keys() else None,
+        "paymentMethod": row["payment_method"],
+        "paymentStatus": row["payment_status"],
+        "pixTxid": row["pix_txid"] if "pix_txid" in row.keys() else None,
+        "items": [
             {
                 "id": item["product_id"],
                 "productId": item["product_id"],
@@ -487,6 +504,20 @@ def row_to_order(conn, row):
             }
             for item in item_rows
         ],
+    }
+
+
+def public_order_status(conn, row):
+    order = row_to_order(conn, row)
+    return {
+        "id": order["id"],
+        "number": order["number"],
+        "createdAt": order["createdAt"],
+        "status": order["status"],
+        "statusLabel": order["statusLabel"],
+        "statusUpdatedAt": order["statusUpdatedAt"],
+        "total": order["total"],
+        "items": order["items"],
     }
 
 
@@ -664,6 +695,36 @@ class AppHandler(BaseHTTPRequestHandler):
                     return
                 rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC LIMIT 50").fetchall()
                 self._send_json(200, [row_to_order(conn, row) for row in rows])
+                return
+
+            if path == "/api/kitchen/orders":
+                rows = conn.execute(
+                    """
+                    SELECT * FROM orders
+                    WHERE status IN ('received', 'preparing')
+                    ORDER BY created_at ASC
+                    LIMIT 50
+                    """
+                ).fetchall()
+                self._send_json(
+                    200,
+                    {
+                        "statuses": ORDER_STATUSES,
+                        "orders": [row_to_order(conn, row) for row in rows],
+                    },
+                )
+                return
+
+            if path.startswith("/api/status/"):
+                token = path.split("/")[-1]
+                row = conn.execute(
+                    "SELECT * FROM orders WHERE status_token = ? LIMIT 1",
+                    (token,),
+                ).fetchone()
+                if not row:
+                    self._send_json(404, {"error": "Pedido nao encontrado."})
+                    return
+                self._send_json(200, public_order_status(conn, row))
                 return
 
             if path == "/api/dashboard":
@@ -1012,7 +1073,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 timestamp = now_iso()
                 payment_method = body.get("paymentMethod", "pix")
                 payment_payload = create_pix_payload(float(body["total"])) if payment_method == "pix" else None
-                payment_status = "pending"
+                payment_status = body.get("paymentStatus", "paid")
+                status_token = secrets.token_urlsafe(12)
                 customer_auth = decode_token(self._bearer_token())
                 customer_id = None
                 customer_email = None
@@ -1027,8 +1089,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 conn.execute(
                     """
                     INSERT INTO orders (
-                      id, created_at, customer_id, customer_email, mode, customer_name, phone, address, subtotal, delivery_fee, total, status, payment_method, payment_status, pix_txid, pix_payload
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      id, created_at, customer_id, customer_email, mode, customer_name, phone, address, subtotal, delivery_fee, total, status, payment_method, payment_status, pix_txid, pix_payload, status_token, status_updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         order_id,
@@ -1042,11 +1104,13 @@ class AppHandler(BaseHTTPRequestHandler):
                         float(body["subtotal"]),
                         float(body["deliveryFee"]),
                         float(body["total"]),
-                        "confirmado",
+                        "received",
                         payment_method,
                         payment_status,
                         payment_payload["txid"] if payment_payload else None,
                         payment_payload["payload"] if payment_payload else None,
+                        status_token,
+                        timestamp,
                     ),
                 )
 
@@ -1075,7 +1139,17 @@ class AppHandler(BaseHTTPRequestHandler):
                     )
                 conn.commit()
 
-                self._send_json(201, {"ok": True, "id": order_id, "payment": payment_payload})
+                row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+                self._send_json(
+                    201,
+                    {
+                        "ok": True,
+                        "id": order_id,
+                        "order": row_to_order(conn, row),
+                        "statusUrl": f"/s/{status_token}",
+                        "payment": payment_payload,
+                    },
+                )
                 return
 
             self._send_json(404, {"error": "Rota nao encontrada."})
@@ -1084,6 +1158,25 @@ class AppHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         body = self._read_json()
+
+        if path.startswith("/api/kitchen/orders/") and path.endswith("/status"):
+            order_id = path.split("/")[-2]
+            next_status = body.get("status", "")
+            if next_status not in ORDER_STATUSES:
+                self._send_json(400, {"error": "Status invalido."})
+                return
+            with db_connection() as conn:
+                conn.execute(
+                    "UPDATE orders SET status = ?, status_updated_at = ? WHERE id = ?",
+                    (next_status, now_iso(), order_id),
+                )
+                conn.commit()
+                row = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+                if not row:
+                    self._send_json(404, {"error": "Pedido nao encontrado."})
+                    return
+                self._send_json(200, row_to_order(conn, row))
+                return
 
         if not self._require_admin_auth():
             return

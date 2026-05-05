@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import "./styles.css";
 import "./catalogo.css";
 import { categories, initialMenuItems } from "./data/menu";
+import {
+  createOrder,
+  fetchKitchenOrders,
+  fetchPublicOrderStatus,
+  updateKitchenOrderStatus
+} from "./lib/api";
 
 const products = initialMenuItems;
 const featuredProduct = products.find((product) => product.combo) ?? products[0];
@@ -22,14 +28,33 @@ const paymentMethods = [
     description: "Pague na retirada do pedido."
   }
 ];
+const orderStatusSteps = ["received", "preparing", "ready"];
+
+function initialScreenFromPath() {
+  if (window.location.pathname === "/cozinha") return "kitchen";
+  if (window.location.pathname.startsWith("/s/")) return "tracking";
+  return "login";
+}
+
+function tokenFromPath() {
+  return window.location.pathname.startsWith("/s/")
+    ? window.location.pathname.split("/").filter(Boolean)[1]
+    : "";
+}
 
 export default function App() {
-  const [screen, setScreen] = useState("login");
+  const [screen, setScreen] = useState(initialScreenFromPath);
   const [cart, setCart] = useState([]);
   const [phone, setPhone] = useState("");
   const [activeCategory, setActiveCategory] = useState("todos");
   const [selectedPayment, setSelectedPayment] = useState("pix");
   const [lastOrder, setLastOrder] = useState(null);
+  const [trackingToken, setTrackingToken] = useState(tokenFromPath);
+  const [trackedOrder, setTrackedOrder] = useState(null);
+  const [kitchenOrders, setKitchenOrders] = useState([]);
+  const [kitchenStatuses, setKitchenStatuses] = useState({});
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [orderError, setOrderError] = useState("");
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -38,7 +63,7 @@ export default function App() {
     : products.filter((product) => product.category === activeCategory);
 
   useEffect(() => {
-    window.history.replaceState({ screen: "login" }, "", window.location.href);
+    window.history.replaceState({ screen }, "", window.location.href);
 
     function handlePopState(event) {
       setScreen(event.state?.screen ?? "login");
@@ -51,8 +76,65 @@ export default function App() {
     };
   }, []);
 
-  function navigateTo(nextScreen) {
-    window.history.pushState({ screen: nextScreen }, "", window.location.href);
+  useEffect(() => {
+    if (screen !== "tracking" || !trackingToken) return undefined;
+
+    let active = true;
+
+    async function loadStatus() {
+      try {
+        const order = await fetchPublicOrderStatus(trackingToken);
+        if (active) {
+          setTrackedOrder(order);
+          setOrderError("");
+        }
+      } catch (error) {
+        if (active) setOrderError(error.message);
+      }
+    }
+
+    loadStatus();
+    const timer = window.setInterval(loadStatus, 4000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [screen, trackingToken]);
+
+  useEffect(() => {
+    if (screen !== "kitchen") return undefined;
+
+    let active = true;
+
+    async function loadKitchen() {
+      try {
+        const payload = await fetchKitchenOrders();
+        if (active) {
+          setKitchenOrders(payload.orders || []);
+          setKitchenStatuses(payload.statuses || {});
+          setOrderError("");
+        }
+      } catch (error) {
+        if (active) setOrderError(error.message);
+      }
+    }
+
+    loadKitchen();
+    const timer = window.setInterval(loadKitchen, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [screen]);
+
+  function navigateTo(nextScreen, path = window.location.href) {
+    if (typeof path === "string" && path.startsWith("/")) {
+      window.history.pushState({ screen: nextScreen }, "", path);
+    } else {
+      window.history.pushState({ screen: nextScreen }, "", window.location.href);
+    }
     setScreen(nextScreen);
   }
 
@@ -132,18 +214,55 @@ export default function App() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   }
 
-  function finishOrder() {
+  async function finishOrder() {
     const payment = paymentMethods.find((method) => method.id === selectedPayment);
-    const order = {
-      number: String(Math.floor(100 + Math.random() * 900)),
-      total,
-      items: totalItems,
-      paymentTitle: payment?.title ?? "Pagamento"
-    };
+    setIsSubmittingOrder(true);
+    setOrderError("");
 
-    setLastOrder(order);
-    setCart([]);
-    navigateTo("success");
+    try {
+      const payload = await createOrder({
+        paymentMethod: selectedPayment,
+        paymentStatus: "paid",
+        mode: "pickup",
+        customerName: "Cliente app",
+        phone: phone || "Nao informado",
+        address: "Retirada no balcao",
+        subtotal: total,
+        deliveryFee: 0,
+        total,
+        items: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+      });
+
+      const token = payload.order?.statusToken;
+      const order = {
+        ...payload.order,
+        paymentTitle: payment?.title ?? "Pagamento",
+      };
+
+      setLastOrder(order);
+      setTrackedOrder(order);
+      setTrackingToken(token);
+      setCart([]);
+      navigateTo("tracking", token ? `/s/${token}` : window.location.href);
+    } catch (error) {
+      setOrderError(error.message);
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  }
+
+  async function changeKitchenStatus(orderId, status) {
+    const updated = await updateKitchenOrderStatus(orderId, status);
+    setKitchenOrders((currentOrders) =>
+      currentOrders
+        .map((order) => (order.id === orderId ? updated : order))
+        .filter((order) => order.status !== "ready" && order.status !== "delivery")
+    );
   }
 
   if (screen === "catalogo") {
@@ -379,29 +498,46 @@ export default function App() {
         </section>
 
         <section className="payment-actions">
-          <button onClick={finishOrder} disabled={cart.length === 0}>
-            Confirmar pagamento
+          <button onClick={finishOrder} disabled={cart.length === 0 || isSubmittingOrder}>
+            {isSubmittingOrder ? "Confirmando..." : "Confirmar pagamento"}
           </button>
+          {orderError && <p className="payment-error">{orderError}</p>}
           <p>Simulacao para validar o fluxo. A integracao real entra depois.</p>
         </section>
       </main>
     );
   }
 
-  if (screen === "success") {
+  if (screen === "tracking") {
+    const order = trackedOrder || lastOrder;
+    const currentStep = Math.max(0, orderStatusSteps.indexOf(order?.status || "received"));
+
     return (
-      <main className="app-shell success-page">
+      <main className="app-shell success-page tracking-page">
         <section className="order-success">
           <div className="success-check" aria-hidden="true">OK</div>
 
-          <span className="eyebrow">Pedido aprovado</span>
-          <h1>Senha {lastOrder?.number ?? "---"}</h1>
-          <p>Seu pedido foi recebido e sera preparado em instantes.</p>
+          <span className="eyebrow">Acompanhe seu pedido</span>
+          <h1>Senha {order?.number ?? "---"}</h1>
+          <p>{order?.statusLabel ?? "Aguardando confirmacao da cozinha."}</p>
+
+          <div className="order-timeline">
+            {orderStatusSteps.map((status, index) => (
+              <div className={index <= currentStep ? "active" : ""} key={status}>
+                <span></span>
+                <strong>
+                  {status === "received" && "Recebido pela cozinha"}
+                  {status === "preparing" && "Em preparo"}
+                  {status === "ready" && "Pronto para retirada"}
+                </strong>
+              </div>
+            ))}
+          </div>
 
           <div className="success-details">
             <div>
               <span>Total</span>
-              <strong>{money(lastOrder?.total ?? 0)}</strong>
+              <strong>{money(order?.total ?? 0)}</strong>
             </div>
             <div>
               <span>Pagamento</span>
@@ -409,7 +545,71 @@ export default function App() {
             </div>
           </div>
 
+          {trackingToken && (
+            <p className="tracking-link">Link: /s/{trackingToken}</p>
+          )}
+          {orderError && <p className="payment-error">{orderError}</p>}
+
           <button onClick={() => navigateTo("catalogo")}>Fazer novo pedido</button>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "kitchen") {
+    return (
+      <main className="app-shell kitchen-page">
+        <header className="cart-header">
+          <button onClick={() => navigateTo("catalogo", "/")} aria-label="Voltar">
+            {"<"}
+          </button>
+          <div>
+            <span className="eyebrow">Cozinha</span>
+            <h1>Pedidos em preparo</h1>
+          </div>
+        </header>
+
+        {orderError && <p className="payment-error">{orderError}</p>}
+
+        <section className="kitchen-list">
+          {kitchenOrders.length === 0 ? (
+            <div className="kitchen-empty">
+              <strong>Nenhum pedido pendente</strong>
+              <span>Novos pedidos aparecem aqui automaticamente.</span>
+            </div>
+          ) : (
+            kitchenOrders.map((order) => (
+              <article className="kitchen-order" key={order.id}>
+                <header>
+                  <div>
+                    <span>Senha</span>
+                    <strong>{order.number}</strong>
+                  </div>
+                  <em>{order.statusLabel}</em>
+                </header>
+
+                <ul>
+                  {order.items.map((item) => (
+                    <li key={`${order.id}-${item.productId}`}>
+                      <span>{item.quantity}x {item.name}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="kitchen-actions">
+                  <button onClick={() => changeKitchenStatus(order.id, "received")}>
+                    {kitchenStatuses.received || "Recebido"}
+                  </button>
+                  <button onClick={() => changeKitchenStatus(order.id, "preparing")}>
+                    {kitchenStatuses.preparing || "Em preparo"}
+                  </button>
+                  <button onClick={() => changeKitchenStatus(order.id, "ready")}>
+                    {kitchenStatuses.ready || "Pronto"}
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
         </section>
       </main>
     );
