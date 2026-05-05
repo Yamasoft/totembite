@@ -156,7 +156,6 @@ export default function App() {
                 <article className={`product-card ${unavailable ? "is-unavailable" : ""}`} key={product.id}>
                   <div className="product-media">
                     <img className="product-img" src={product.image} alt={product.name} />
-                    <span>{product.categoryLabel}</span>
                   </div>
 
                   <div className="product-info">
@@ -166,12 +165,6 @@ export default function App() {
                     </div>
 
                     <p>{product.description}</p>
-
-                    <div className="product-meta">
-                      {product.promo && <span>Oferta</span>}
-                      {product.combo && <span>Combo</span>}
-                      <span>{unavailable ? "Indisponivel" : `${product.stock} un.`}</span>
-                    </div>
                   </div>
 
                   <button
