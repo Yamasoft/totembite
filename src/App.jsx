@@ -530,14 +530,19 @@ export default function App() {
     const order = trackedOrder || lastOrder;
     const currentStep = Math.max(0, orderStatusSteps.indexOf(order?.status || "received"));
     const isReady = order?.status === "ready";
+    const isFinished = order?.status === "finished";
 
     return (
       <main className="app-shell success-page tracking-page">
-        <section className={`order-success ${isReady ? "is-ready" : ""}`}>
+        <section className={`order-success ${isReady ? "is-ready" : ""} ${isFinished ? "is-finished" : ""}`}>
           <div className="tracking-status-card">
-            <span className="eyebrow">Status atualizado automaticamente</span>
+            <span className="eyebrow">{isFinished ? "Pedido encerrado" : "Status atualizado automaticamente"}</span>
             <strong>{order?.statusLabel ?? "Aguardando cozinha"}</strong>
-            <p>Mantenha esta tela aberta. A cozinha atualiza o andamento do pedido em tempo real.</p>
+            <p>
+              {isFinished
+                ? "Obrigado. Bom apetite!"
+                : "Mantenha esta tela aberta. A cozinha atualiza o andamento do pedido em tempo real."}
+            </p>
           </div>
 
           <div className="tracking-number">
@@ -545,10 +550,12 @@ export default function App() {
             <strong>{order?.number ?? "---"}</strong>
           </div>
 
-          <div className="tracking-live-note">
-            <span></span>
-            <strong>Atualiza sozinho a cada poucos segundos</strong>
-          </div>
+          {!isFinished && (
+            <div className="tracking-live-note">
+              <span></span>
+              <strong>Atualiza sozinho a cada poucos segundos</strong>
+            </div>
+          )}
 
           <div className="order-timeline">
             {orderStatusSteps.map((status, index) => (
@@ -577,7 +584,14 @@ export default function App() {
 
           {orderError && <p className="payment-error">{orderError}</p>}
 
-          <button onClick={() => navigateTo("catalogo")}>Fazer novo pedido</button>
+          <div className="tracking-finished-actions">
+            <button onClick={() => navigateTo("catalogo")}>Fazer novo pedido</button>
+            {isFinished && (
+              <button className="secondary-finish-btn" onClick={() => navigateTo("login", "/")}>
+                Sair
+              </button>
+            )}
+          </div>
         </section>
       </main>
     );

@@ -805,6 +805,18 @@
   width: 100%;
 }
 
+.tracking-finished-actions {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
+.secondary-finish-btn {
+  background: #faf7f2 !important;
+  color: var(--red-dark) !important;
+  box-shadow: inset 0 0 0 1px rgba(143, 16, 16, 0.12);
+}
+
 .tracking-page .order-success {
   gap: 14px;
 }
@@ -839,6 +851,10 @@
 
 .order-success.is-ready .tracking-status-card {
   background: #116b3b;
+}
+
+.order-success.is-finished .tracking-status-card {
+  background: #201716;
 }
 
 .tracking-number {
