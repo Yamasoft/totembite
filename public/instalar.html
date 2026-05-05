@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#c82e24" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/pwa-icon-192.png" />
+    <title>Instalar Pedido Direto</title>
+    <style>
+      :root {
+        color: #2b1406;
+        background: #f9efe2;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100svh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background:
+          radial-gradient(circle at top right, rgba(200, 46, 36, 0.14), transparent 30%),
+          linear-gradient(145deg, #fffaf4, #f0dbc5);
+      }
+
+      main {
+        width: min(760px, 100%);
+        display: grid;
+        gap: 18px;
+        padding: 26px;
+        border: 1px solid rgba(97, 44, 13, 0.12);
+        border-radius: 28px;
+        background: rgba(255, 248, 238, 0.92);
+        box-shadow: 0 24px 60px rgba(83, 33, 2, 0.12);
+      }
+
+      header,
+      .status {
+        display: grid;
+        gap: 8px;
+        text-align: center;
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1;
+      }
+
+      p {
+        color: #7a5448;
+        line-height: 1.45;
+      }
+
+      .qr-panel {
+        display: grid;
+        justify-items: center;
+        gap: 14px;
+        padding: 22px;
+        border-radius: 24px;
+        background: #ffffff;
+        border: 1px solid rgba(18, 45, 83, 0.1);
+      }
+
+      .qr-panel img {
+        width: min(340px, 100%);
+        aspect-ratio: 1;
+      }
+
+      .action {
+        display: inline-flex;
+        justify-content: center;
+        width: 100%;
+        padding: 16px 18px;
+        border: 0;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #c82e24, #d5a038);
+        color: #fffaf4;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 900;
+        text-decoration: none;
+      }
+
+      .action:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .secondary {
+        background: rgba(18, 45, 83, 0.09);
+        color: #122d53;
+      }
+
+      .note {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(18, 45, 83, 0.07);
+        color: #4f2c1e;
+        font-size: 0.95rem;
+      }
+
+      code {
+        padding: 3px 6px;
+        border-radius: 8px;
+        background: rgba(18, 45, 83, 0.08);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Pedido Direto</h1>
+        <p>Escaneie este QR pelo Android e toque em instalar para abrir sem barra de endereco.</p>
+      </header>
+
+      <section class="qr-panel">
+        <img src="/install-qr.png" alt="QR Code para abrir a instalacao do app" />
+        <button id="install" class="action" type="button" disabled>Instalar app</button>
+        <a class="action secondary" href="/">Abrir agora</a>
+      </section>
+
+      <section class="status">
+        <p id="message" class="note">Verificando se o navegador permite instalacao direta...</p>
+        <p><code id="current-url">Carregando link...</code></p>
+      </section>
+    </main>
+
+    <script>
+      let deferredPrompt = null
+      const installButton = document.getElementById('install')
+      const message = document.getElementById('message')
+      const currentUrl = document.getElementById('current-url')
+      currentUrl.textContent = window.location.href
+
+      function isStandalone() {
+        return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
+      }
+
+      function setUnavailableMessage() {
+        if (isStandalone()) {
+          message.textContent = 'O app ja esta aberto em modo instalado.'
+          installButton.textContent = 'App instalado'
+          return
+        }
+
+        const isSecure =
+          location.protocol === 'https:' ||
+          ['localhost', '127.0.0.1'].includes(location.hostname)
+
+        message.textContent = isSecure
+          ? 'Se o botao nao liberar, abra pelo Chrome e aguarde alguns segundos.'
+          : 'Para instalacao direta igual ao TotemCafe, este link precisa estar em HTTPS. Em IP local HTTP o Android normalmente bloqueia o instalador PWA.'
+      }
+
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault()
+        deferredPrompt = event
+        installButton.disabled = false
+        message.textContent = 'Instalacao pronta. Toque no botao para abrir como app em tela cheia.'
+      })
+
+      window.addEventListener('appinstalled', () => {
+        deferredPrompt = null
+        installButton.disabled = true
+        installButton.textContent = 'App instalado'
+        message.textContent = 'Instalado. Abra pelo icone do app na tela inicial.'
+      })
+
+      installButton.addEventListener('click', async () => {
+        if (!deferredPrompt) {
+          setUnavailableMessage()
+          return
+        }
+
+        deferredPrompt.prompt()
+        const result = await deferredPrompt.userChoice
+        if (result.outcome === 'accepted') {
+          deferredPrompt = null
+          installButton.disabled = true
+          installButton.textContent = 'App instalado'
+        }
+      })
+
+      if ('serviceWorker' in navigator && (window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname))) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {})
+      }
+
+      window.setTimeout(setUnavailableMessage, 1200)
+    </script>
+  </body>
+</html>

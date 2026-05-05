@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#c82e24" />
+    <title>Atualizar app</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100svh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #fff8ef;
+        color: #2b1406;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(520px, 100%);
+        display: grid;
+        gap: 14px;
+        padding: 24px;
+        border-radius: 22px;
+        background: #ffffff;
+        box-shadow: 0 18px 44px rgba(83, 33, 2, 0.14);
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        line-height: 1;
+      }
+
+      p {
+        color: #7a5448;
+        line-height: 1.45;
+      }
+
+      a,
+      button {
+        width: 100%;
+        min-height: 52px;
+        border: 0;
+        border-radius: 16px;
+        background: #c82e24;
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 900;
+        text-align: center;
+        text-decoration: none;
+        display: inline-grid;
+        place-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Atualizando o app</h1>
+      <p id="status">Limpando dados antigos do app neste celular...</p>
+      <button id="open" type="button" hidden>Abrir novamente</button>
+      <a id="fallback" href="/instalar.html?fresh=1" hidden>Abrir instalacao</a>
+    </main>
+
+    <script>
+      async function clearAppData() {
+        const status = document.getElementById('status')
+        const button = document.getElementById('open')
+        const fallback = document.getElementById('fallback')
+
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations()
+            await Promise.all(registrations.map((registration) => registration.unregister()))
+          }
+
+          if ('caches' in window) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map((key) => caches.delete(key)))
+          }
+
+          try {
+            localStorage.clear()
+            sessionStorage.clear()
+          } catch {}
+
+          status.textContent = 'Pronto. Abrindo a instalacao limpa...'
+          window.setTimeout(() => {
+            window.location.replace('/instalar.html?fresh=1')
+          }, 600)
+        } catch (error) {
+          status.textContent = 'Nao foi possivel limpar automaticamente. Toque abaixo para abrir novamente.'
+          button.hidden = false
+          fallback.hidden = false
+        }
+      }
+
+      document.getElementById('open').addEventListener('click', () => {
+        window.location.replace('/instalar.html?fresh=1')
+      })
+
+      clearAppData()
+    </script>
+  </body>
+</html>

@@ -1,0 +1,91 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #e5d5bd;
+}
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* Simulação de celular */
+.phone {
+  width: 360px;
+  height: 700px;
+  background: #b40000;
+  border-radius: 30px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Header */
+.header {
+  display: flex;
+  justify-content: space-between;
+  padding: 15px;
+}
+
+.logo {
+  background: #ffcc00;
+  padding: 10px;
+  border-radius: 50%;
+  font-weight: bold;
+}
+
+.skip {
+  background: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 5px 10px;
+}
+
+/* Banner */
+.banner {
+  text-align: center;
+  color: white;
+  font-size: 24px;
+}
+
+/* Card */
+.card {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: #fff;
+  border-radius: 25px 25px 0 0;
+  padding: 20px;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+.card input {
+  width: 100%;
+  padding: 12px;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+}
+
+.btn-primary {
+  width: 100%;
+  margin-top: 15px;
+  padding: 12px;
+  background: #d60000;
+  color: white;
+  border: none;
+  border-radius: 10px;
+}
+
+.btn-secondary {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  background: #eee;
+  border: none;
+  border-radius: 10px;
+}

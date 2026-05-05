@@ -1,0 +1,140 @@
+{
+  "adminUsers": [
+    {
+      "id": "admin-1",
+      "username": "admin",
+      "passwordHash": "49f05d445361ed84b01edba6fceaab150c9d96c30f7143a55bc99c1fa702c602",
+      "createdAt": "2026-04-28T20:11:15.389Z"
+    }
+  ],
+  "products": [
+    {
+      "id": "burger-brasa",
+      "name": "Brasa Smash Bacon",
+      "description": "Pao selado, burger de 120g, cheddar cremoso, bacon crocante e maionese da casa.",
+      "category": "lanches",
+      "categoryLabel": "Lanche",
+      "price": 28.9,
+      "stock": 18,
+      "promo": true,
+      "combo": false,
+      "image": "/images/burger-brasa.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "combo-duplo",
+      "name": "Combo Brasa Dupla",
+      "description": "Dois smash burgers, frita rustica grande e dois refrigerantes de 350 ml.",
+      "category": "lanches",
+      "categoryLabel": "Combo",
+      "price": 54.9,
+      "stock": 7,
+      "promo": true,
+      "combo": true,
+      "image": "/images/combo-brasa.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "frango-crispy",
+      "name": "Chicken Crisp",
+      "description": "File de frango empanado, alface fresca, picles agridoce e molho especial.",
+      "category": "lanches",
+      "categoryLabel": "Lanche",
+      "price": 26.5,
+      "stock": 10,
+      "promo": false,
+      "combo": false,
+      "image": "/images/chicken-crisp.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "soda-citrica",
+      "name": "Soda Citrica Artesanal",
+      "description": "Bebida gaseificada de limao siciliano com hortela e gelo triturado.",
+      "category": "bebidas",
+      "categoryLabel": "Bebida",
+      "price": 12.9,
+      "stock": 20,
+      "promo": false,
+      "combo": false,
+      "image": "/images/soda-citrica.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "milkshake-cacau",
+      "name": "Milkshake Cacau Black",
+      "description": "Sorvete cremoso batido com calda intensa de chocolate e chantilly.",
+      "category": "bebidas",
+      "categoryLabel": "Bebida",
+      "price": 18.9,
+      "stock": 9,
+      "promo": true,
+      "combo": false,
+      "image": "/images/milkshake-cacau.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "brownie-duplo",
+      "name": "Brownie Recheado Duo",
+      "description": "Brownie umido com ganache, doce de leite e toque de flor de sal.",
+      "category": "doces",
+      "categoryLabel": "Doce",
+      "price": 14.9,
+      "stock": 14,
+      "promo": true,
+      "combo": false,
+      "image": "/images/brownie-duplo.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "cookie-box",
+      "name": "Cookie Box Caramelo",
+      "description": "Cookie gigante com gotas de chocolate e recheio de caramelo amanteigado.",
+      "category": "doces",
+      "categoryLabel": "Doce",
+      "price": 16.5,
+      "stock": 0,
+      "promo": false,
+      "combo": false,
+      "image": "/images/cookie-box.png",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    }
+  ],
+  "promotions": [
+    {
+      "id": "promo-1",
+      "tag": "Hora do almoco",
+      "title": "Smash + batata por preco fechado",
+      "description": "Oferta valida ate 15h para pedidos feitos no app.",
+      "highlight": "R$ 29,90",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "promo-2",
+      "tag": "Delivery",
+      "title": "Frete reduzido no raio de 5 km",
+      "description": "Entrega com valor promocional para pedidos acima de R$ 35.",
+      "highlight": "a partir de R$ 4,99",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    },
+    {
+      "id": "promo-3",
+      "tag": "Sobremesa",
+      "title": "Brownie em dobro no combo da noite",
+      "description": "Leve 2 unidades ao adicionar qualquer combo premium.",
+      "highlight": "2 por R$ 16,00",
+      "createdAt": "2026-04-28T20:11:15.389Z",
+      "updatedAt": "2026-04-28T20:11:15.389Z"
+    }
+  ],
+  "orders": []
+}

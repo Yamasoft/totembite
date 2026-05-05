@@ -1,0 +1,7 @@
+br.com.totembite.webview:style/AppTheme = 0x7f050000
+br.com.totembite.webview:string/app_name = 0x7f040000
+br.com.totembite.webview:mipmap/ic_launcher_round = 0x7f030001
+br.com.totembite.webview:mipmap/ic_launcher = 0x7f030000
+br.com.totembite.webview:drawable/ic_launcher_foreground = 0x7f020000
+br.com.totembite.webview:color/brand_cream = 0x7f010001
+br.com.totembite.webview:color/brand_coral = 0x7f010000

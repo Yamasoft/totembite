@@ -1,0 +1,4 @@
+#Wed Apr 29 17:20:09 BRT 2026
+base.0=C\:\\App_compras\\android-webview\\app\\build\\intermediates\\dex\\debugAndroidTest\\mergeProjectDexDebugAndroidTest\\0\\classes.dex
+path.0=0/classes.dex
+renamed.0=classes.dex

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Brasa Go - Cardápio</title>
+
+  <link rel="stylesheet" href="./catalogo.css">
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo">BG</div>
+    <h1>Brasa Go</h1>
+  </header>
+
+  <!-- BUSCA -->
+  <div class="search-container">
+    <input type="text" placeholder="Buscar lanches, combos, bebidas...">
+  </div>
+
+  <!-- PROMO -->
+  <section class="promo">
+    <img src="/images/combo-brasa.png" class="promo-img">
+    <div>
+      <span class="promo-tag">OFERTA DO DIA</span>
+      <h2>Combo Brasa</h2>
+      <p>Hambúrguer + batata + bebida</p>
+    </div>
+    <button class="btn-add">Adicionar</button>
+  </section>
+
+  <!-- CATEGORIAS -->
+  <div class="categories">
+    <button class="active">Todos</button>
+    <button>Combos</button>
+    <button>Lanches</button>
+    <button>Bebidas</button>
+    <button>Sobremesas</button>
+  </div>
+
+  <!-- LISTA -->
+  <main id="menu-list">
+
+    <!-- ITEM -->
+    <div class="product-card">
+      <img src="/images/burger-brasa.png" class="product-img">
+
+      <div class="product-info">
+        <h3>Combo Brasa</h3>
+        <p>Hambúrguer + batata + bebida</p>
+        <span class="price">R$ 29,90</span>
+      </div>
+
+      <button class="btn-plus">+</button>
+    </div>
+
+    <div class="product-card">
+      <img src="/images/hero-burger.png" class="product-img">
+
+      <div class="product-info">
+        <h3>X-Burger</h3>
+        <p>Pão, carne, queijo e molho</p>
+        <span class="price">R$ 18,70</span>
+      </div>
+
+      <button class="btn-plus">+</button>
+    </div>
+
+    <div class="product-card">
+      <img src="/images/soda-citrica.png" class="product-img">
+
+      <div class="product-info">
+        <h3>Refrigerante</h3>
+        <p>Lata 350ml</p>
+        <span class="price">R$ 6,00</span>
+      </div>
+
+      <button class="btn-plus">+</button>
+    </div>
+
+  </main>
+
+  <!-- CARRINHO -->
+  <footer class="cart-bar">
+    <div>
+      <span id="cart-items">0 itens</span>
+      <strong id="cart-total">R$ 0,00</strong>
+    </div>
+
+    <button id="cart-button">Ver pedido</button>
+  </footer>
+
+  <script src="./catalogo.js"></script>
+
+</body>
+</html>

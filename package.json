@@ -1,0 +1,32 @@
+{
+  "name": "app-compras",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "admin:reset": "node tools/reset-admin-password.js",
+    "dev": "vite",
+    "dev:all": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-all.ps1",
+    "dev:kiosk": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-kiosk.ps1",
+    "server": "python server/app.py",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "vite": "^8.0.10"
+  }
+}
