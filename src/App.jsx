@@ -511,15 +511,26 @@ export default function App() {
   if (screen === "tracking") {
     const order = trackedOrder || lastOrder;
     const currentStep = Math.max(0, orderStatusSteps.indexOf(order?.status || "received"));
+    const isReady = order?.status === "ready";
 
     return (
       <main className="app-shell success-page tracking-page">
-        <section className="order-success">
-          <div className="success-check" aria-hidden="true">OK</div>
+        <section className={`order-success ${isReady ? "is-ready" : ""}`}>
+          <div className="tracking-status-card">
+            <span className="eyebrow">Status atualizado automaticamente</span>
+            <strong>{order?.statusLabel ?? "Aguardando cozinha"}</strong>
+            <p>Mantenha esta tela aberta. A cozinha atualiza o andamento do pedido em tempo real.</p>
+          </div>
 
-          <span className="eyebrow">Acompanhe seu pedido</span>
-          <h1>Senha {order?.number ?? "---"}</h1>
-          <p>{order?.statusLabel ?? "Aguardando confirmacao da cozinha."}</p>
+          <div className="tracking-number">
+            <span>Sua senha</span>
+            <strong>{order?.number ?? "---"}</strong>
+          </div>
+
+          <div className="tracking-live-note">
+            <span></span>
+            <strong>Atualiza sozinho a cada poucos segundos</strong>
+          </div>
 
           <div className="order-timeline">
             {orderStatusSteps.map((status, index) => (
@@ -546,7 +557,7 @@ export default function App() {
           </div>
 
           {trackingToken && (
-            <p className="tracking-link">Link: /s/{trackingToken}</p>
+            <p className="tracking-link">Link de acompanhamento: /s/{trackingToken}</p>
           )}
           {orderError && <p className="payment-error">{orderError}</p>}
 

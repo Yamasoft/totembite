@@ -806,7 +806,87 @@
 }
 
 .tracking-page .order-success {
-  gap: 16px;
+  gap: 14px;
+}
+
+.tracking-status-card {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #201716;
+  color: #fff;
+  text-align: left;
+}
+
+.tracking-status-card .eyebrow {
+  color: var(--yellow);
+}
+
+.tracking-status-card strong {
+  display: block;
+  font-size: 2rem;
+  line-height: 0.96;
+}
+
+.tracking-status-card p {
+  max-width: none;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.95rem;
+  line-height: 1.32;
+}
+
+.order-success.is-ready .tracking-status-card {
+  background: #116b3b;
+}
+
+.tracking-number {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #fff5de;
+}
+
+.tracking-number span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.tracking-number strong {
+  color: var(--red-dark);
+  font-size: 4.2rem;
+  line-height: 0.9;
+}
+
+.tracking-live-note {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(200, 25, 24, 0.08);
+  color: var(--red-dark);
+}
+
+.tracking-live-note span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 0 6px rgba(200, 25, 24, 0.12);
+}
+
+.tracking-live-note strong {
+  font-size: 0.84rem;
+  font-weight: 950;
 }
 
 .order-timeline {
