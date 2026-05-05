@@ -13,7 +13,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "https://totembite.yamasoft.com.br/";
+    private static final String APP_URL = "http://192.168.15.13:5173/";
 
     private WebView webView;
 
