@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./styles.css";
 import "./catalogo.css";
 import { categories, initialMenuItems } from "./data/menu";
@@ -17,6 +17,34 @@ export default function App() {
   const filteredProducts = activeCategory === "todos"
     ? products
     : products.filter((product) => product.category === activeCategory);
+
+  useEffect(() => {
+    window.history.replaceState({ screen: "login" }, "", window.location.href);
+
+    function handlePopState(event) {
+      setScreen(event.state?.screen ?? "login");
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
+  function navigateTo(nextScreen) {
+    window.history.pushState({ screen: nextScreen }, "", window.location.href);
+    setScreen(nextScreen);
+  }
+
+  function goBack(fallbackScreen) {
+    if (window.history.state?.screen) {
+      window.history.back();
+      return;
+    }
+
+    setScreen(fallbackScreen);
+  }
 
   function money(value) {
     return value.toLocaleString("pt-BR", {
@@ -91,10 +119,16 @@ export default function App() {
         <main className="app-shell">
           <header className="hero">
             <div className="hero-top">
-              <div>
-                <span className="eyebrow">Peca agora</span>
-                <h1>Brasa Go</h1>
-                <p>Lanches, combos e sobremesas preparados na hora.</p>
+              <div className="hero-title-row">
+                <button className="catalog-back-btn" onClick={() => goBack("login")} aria-label="Voltar">
+                  {"<"}
+                </button>
+
+                <div>
+                  <span className="eyebrow">Peca agora</span>
+                  <h1>Brasa Go</h1>
+                  <p>Lanches, combos e sobremesas preparados na hora.</p>
+                </div>
               </div>
 
               <div className="brand-badge">BG</div>
@@ -198,7 +232,7 @@ export default function App() {
           </div>
 
           <button
-            onClick={() => setScreen("cart")}
+            onClick={() => navigateTo("cart")}
             disabled={cart.length === 0}
           >
             Ver pedido
@@ -212,7 +246,7 @@ export default function App() {
     return (
       <main className="app-shell cart-page">
         <header className="cart-header">
-          <button onClick={() => setScreen("catalogo")} aria-label="Voltar">
+          <button onClick={() => goBack("catalogo")} aria-label="Voltar">
             {"<"}
           </button>
           <div>
@@ -225,7 +259,7 @@ export default function App() {
           <section className="empty-cart">
             <h2>Carrinho vazio</h2>
             <p>Adicione produtos para continuar.</p>
-            <button onClick={() => setScreen("catalogo")}>Voltar ao cardapio</button>
+            <button onClick={() => goBack("catalogo")}>Voltar ao cardapio</button>
           </section>
         ) : (
           <>
@@ -278,7 +312,7 @@ export default function App() {
               <span>BG</span>
             </div>
 
-            <button className="ghost-link" onClick={() => setScreen("catalogo")}>
+            <button className="ghost-link" onClick={() => navigateTo("catalogo")}>
               Pular
             </button>
           </header>
@@ -320,7 +354,7 @@ export default function App() {
               onChange={(event) => setPhone(formatPhone(event.target.value))}
             />
 
-            <button className="primary-cta" onClick={() => setScreen("catalogo")}>
+            <button className="primary-cta" onClick={() => navigateTo("catalogo")}>
               Continuar
             </button>
 
