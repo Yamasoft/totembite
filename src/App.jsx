@@ -257,9 +257,18 @@ export default function App() {
 
         {cart.length === 0 ? (
           <section className="empty-cart">
-            <h2>Carrinho vazio</h2>
-            <p>Adicione produtos para continuar.</p>
-            <button onClick={() => goBack("catalogo")}>Voltar ao cardapio</button>
+            <div className="empty-cart-visual" aria-hidden="true">
+              <span></span>
+              <strong>0</strong>
+            </div>
+
+            <div className="empty-cart-copy">
+              <span className="eyebrow">Nada por aqui</span>
+              <h2>Seu carrinho esta vazio</h2>
+              <p>Escolha seus lanches favoritos no cardapio para revisar o pedido aqui.</p>
+            </div>
+
+            <button onClick={() => goBack("catalogo")}>Escolher produtos</button>
           </section>
         ) : (
           <>
