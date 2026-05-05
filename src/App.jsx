@@ -265,6 +265,22 @@ export default function App() {
     );
   }
 
+  function nextKitchenStatus(status) {
+    if (status === "received") return "preparing";
+    if (status === "preparing") return "ready";
+    return "ready";
+  }
+
+  function nextKitchenLabel(status) {
+    if (status === "received") return "Tocar para iniciar preparo";
+    if (status === "preparing") return "Tocar para marcar pronto";
+    return "Pedido pronto";
+  }
+
+  function advanceKitchenStatus(order) {
+    changeKitchenStatus(order.id, nextKitchenStatus(order.status));
+  }
+
   if (screen === "catalogo") {
     return (
       <>
@@ -590,12 +606,23 @@ export default function App() {
             </div>
           ) : (
             kitchenOrders.map((order) => (
-              <article className="kitchen-order" key={order.id}>
+              <article
+                className={`kitchen-order status-${order.status}`}
+                key={order.id}
+                onClick={() => advanceKitchenStatus(order)}
+              >
                 <header>
-                  <div>
+                  <button
+                    className="kitchen-password"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      advanceKitchenStatus(order);
+                    }}
+                    aria-label={`Avancar pedido ${order.number}`}
+                  >
                     <span>Senha</span>
                     <strong>{order.number}</strong>
-                  </div>
+                  </button>
                   <em>{order.statusLabel}</em>
                 </header>
 
@@ -607,15 +634,14 @@ export default function App() {
                   ))}
                 </ul>
 
-                <div className="kitchen-actions">
-                  <button onClick={() => changeKitchenStatus(order.id, "received")}>
-                    {kitchenStatuses.received || "Recebido"}
-                  </button>
-                  <button onClick={() => changeKitchenStatus(order.id, "preparing")}>
-                    {kitchenStatuses.preparing || "Em preparo"}
-                  </button>
+                <div className="kitchen-next-action">
+                  <strong>{nextKitchenLabel(order.status)}</strong>
+                  <span>Toque no pedido ou na senha para avancar.</span>
+                </div>
+
+                <div className="kitchen-actions" onClick={(event) => event.stopPropagation()}>
                   <button onClick={() => changeKitchenStatus(order.id, "ready")}>
-                    {kitchenStatuses.ready || "Pronto"}
+                    {kitchenStatuses.ready || "Pronto para retirada"}
                   </button>
                 </div>
               </article>

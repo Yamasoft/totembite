@@ -958,11 +958,13 @@
 
 .kitchen-page {
   padding-bottom: 28px;
+  width: min(920px, 100%);
 }
 
 .kitchen-list {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 14px;
 }
 
 .kitchen-empty,
@@ -992,7 +994,14 @@
 .kitchen-order {
   display: grid;
   gap: 12px;
-  padding: 14px;
+  min-height: 260px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.kitchen-order:active {
+  transform: scale(0.985);
 }
 
 .kitchen-order header {
@@ -1002,17 +1011,28 @@
   align-items: center;
 }
 
-.kitchen-order header span {
+.kitchen-password {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.kitchen-order header span,
+.kitchen-next-action span {
   display: block;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 900;
 }
 
-.kitchen-order header strong {
+.kitchen-password strong {
   color: var(--red-dark);
-  font-size: 1.8rem;
-  line-height: 1;
+  font-size: 4.2rem;
+  line-height: 0.86;
 }
 
 .kitchen-order em {
@@ -1035,20 +1055,51 @@
   font-weight: 820;
 }
 
-.kitchen-actions {
+.kitchen-next-action {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 4px;
+  margin-top: auto;
+  padding: 13px;
+  border-radius: 14px;
+  background: #fff5de;
+}
+
+.kitchen-next-action strong {
+  color: var(--red-dark);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.kitchen-actions {
+  display: flex;
+  justify-content: end;
 }
 
 .kitchen-actions button {
-  min-height: 46px;
-  padding: 8px;
+  min-height: 42px;
+  padding: 8px 12px;
   border-radius: 12px;
   background: #201716;
   color: #fff;
   font-size: 0.8rem;
   font-weight: 950;
+}
+
+.kitchen-order.status-preparing {
+  border-color: rgba(200, 25, 24, 0.2);
+  box-shadow: 0 16px 34px rgba(200, 25, 24, 0.12);
+}
+
+.kitchen-order.status-preparing .kitchen-next-action {
+  background: #201716;
+}
+
+.kitchen-order.status-preparing .kitchen-next-action strong {
+  color: #fff;
+}
+
+.kitchen-order.status-preparing .kitchen-next-action span {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 @media (max-width: 430px) {
