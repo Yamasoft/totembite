@@ -1,7 +1,0 @@
-tunnel: f86f798c-23d5-4034-877c-0c7e9e4fa14d
-credentials-file: C:\Users\Roberto\.cloudflared\f86f798c-23d5-4034-877c-0c7e9e4fa14d.json
-
-ingress:
-  - hostname: totembite.yamasoft.com.br
-    service: http://127.0.0.1:3001
-  - service: http_status:404
