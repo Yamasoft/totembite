@@ -5,12 +5,31 @@ import { categories, initialMenuItems } from "./data/menu";
 
 const products = initialMenuItems;
 const featuredProduct = products.find((product) => product.combo) ?? products[0];
+const paymentMethods = [
+  {
+    id: "pix",
+    title: "Pix",
+    description: "Pague pelo QR Code no caixa ou no celular."
+  },
+  {
+    id: "card",
+    title: "Cartao",
+    description: "Credito ou debito na maquininha."
+  },
+  {
+    id: "cash",
+    title: "Dinheiro",
+    description: "Pague na retirada do pedido."
+  }
+];
 
 export default function App() {
   const [screen, setScreen] = useState("login");
   const [cart, setCart] = useState([]);
   const [phone, setPhone] = useState("");
   const [activeCategory, setActiveCategory] = useState("todos");
+  const [selectedPayment, setSelectedPayment] = useState("pix");
+  const [lastOrder, setLastOrder] = useState(null);
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -111,6 +130,20 @@ export default function App() {
     }
 
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+
+  function finishOrder() {
+    const payment = paymentMethods.find((method) => method.id === selectedPayment);
+    const order = {
+      number: String(Math.floor(100 + Math.random() * 900)),
+      total,
+      items: totalItems,
+      paymentTitle: payment?.title ?? "Pagamento"
+    };
+
+    setLastOrder(order);
+    setCart([]);
+    navigateTo("success");
   }
 
   if (screen === "catalogo") {
@@ -304,10 +337,80 @@ export default function App() {
                 <strong>{money(total)}</strong>
               </div>
 
-              <button>Finalizar pedido</button>
+              <button onClick={() => navigateTo("payment")}>Finalizar pedido</button>
             </section>
           </>
         )}
+      </main>
+    );
+  }
+
+  if (screen === "payment") {
+    return (
+      <main className="app-shell cart-page payment-page">
+        <header className="cart-header">
+          <button onClick={() => goBack("cart")} aria-label="Voltar">
+            {"<"}
+          </button>
+          <div>
+            <span className="eyebrow">Pagamento</span>
+            <h1>Como deseja pagar?</h1>
+          </div>
+        </header>
+
+        <section className="payment-total">
+          <span>Total do pedido</span>
+          <strong>{money(total)}</strong>
+          <p>{totalItems} {totalItems === 1 ? "item" : "itens"} no carrinho</p>
+        </section>
+
+        <section className="payment-methods">
+          {paymentMethods.map((method) => (
+            <button
+              key={method.id}
+              className={selectedPayment === method.id ? "active" : ""}
+              onClick={() => setSelectedPayment(method.id)}
+            >
+              <span></span>
+              <strong>{method.title}</strong>
+              <em>{method.description}</em>
+            </button>
+          ))}
+        </section>
+
+        <section className="payment-actions">
+          <button onClick={finishOrder} disabled={cart.length === 0}>
+            Confirmar pagamento
+          </button>
+          <p>Simulacao para validar o fluxo. A integracao real entra depois.</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (screen === "success") {
+    return (
+      <main className="app-shell success-page">
+        <section className="order-success">
+          <div className="success-check" aria-hidden="true">OK</div>
+
+          <span className="eyebrow">Pedido aprovado</span>
+          <h1>Senha {lastOrder?.number ?? "---"}</h1>
+          <p>Seu pedido foi recebido e sera preparado em instantes.</p>
+
+          <div className="success-details">
+            <div>
+              <span>Total</span>
+              <strong>{money(lastOrder?.total ?? 0)}</strong>
+            </div>
+            <div>
+              <span>Pagamento</span>
+              <strong>{lastOrder?.paymentTitle ?? "Simulado"}</strong>
+            </div>
+          </div>
+
+          <button onClick={() => navigateTo("catalogo")}>Fazer novo pedido</button>
+        </section>
       </main>
     );
   }
