@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Vite (frontend)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5174
+    },
+    {
+      "name": "Node API",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "server"],
+      "port": 3002
+    },
+    {
+      "name": "Wrangler dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev"],
+      "port": 8787
+    },
+    {
+      "name": "Python API",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/app.py"],
+      "port": 3001
+    }
+  ]
+}

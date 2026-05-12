@@ -1,0 +1,16 @@
+{
+  "appId": "br.com.yamasoft.totembite",
+  "appName": "Totem Bite",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#fff8ef",
+      "showSpinner": false
+    }
+  }
+}

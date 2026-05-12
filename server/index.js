@@ -10,15 +10,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(__dirname, '..')
 const workspaceDataDir = join(rootDir, 'data')
 const legacyJsonPath = join(workspaceDataDir, 'totem-bite-store.json')
-const sqliteDir = process.env.TOTEM_BITE_DB_DIR || 'C:/Users/Roberto/.codex/memories/totem-bite'
-const sqlitePath = join(sqliteDir, 'totem-bite.db')
-const serverPort = 3001
-const authSecret = process.env.ADMIN_AUTH_SECRET || 'totem-bite-local-secret'
+const sqlitePath = process.env.FARMAVET_DB_PATH || 'C:/Farmavet/data/farmavet.db'
+const serverPort = parseInt(process.env.PORT || '3002', 10)
+const authSecret = process.env.ADMIN_AUTH_SECRET || 'farmavet-local-secret'
 const defaultAdminUser = process.env.ADMIN_USER || 'admin'
 const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+const appTimeZone = 'America/Sao_Paulo'
 
 mkdirSync(workspaceDataDir, { recursive: true })
-mkdirSync(sqliteDir, { recursive: true })
+mkdirSync(dirname(sqlitePath), { recursive: true })
 
 const db = new Database(sqlitePath)
 db.pragma('foreign_keys = ON')
@@ -88,10 +88,185 @@ const migrations = [
       );
     `,
   },
+  {
+    id: '002_appointments',
+    sql: `
+      CREATE TABLE IF NOT EXISTS appointments (
+        id                TEXT PRIMARY KEY,
+        cliente_nome      TEXT NOT NULL,
+        cliente_telefone  TEXT NOT NULL,
+        pet_nome          TEXT NOT NULL,
+        pet_tipo          TEXT NOT NULL,
+        pet_porte         TEXT NOT NULL,
+        servico_tipo      TEXT NOT NULL,
+        servico_nome      TEXT NOT NULL,
+        profissional      TEXT NOT NULL,
+        data              TEXT NOT NULL,
+        hora_inicio       TEXT NOT NULL,
+        hora_fim          TEXT NOT NULL,
+        status            TEXT NOT NULL DEFAULT 'agendado',
+        observacoes       TEXT NOT NULL DEFAULT '',
+        created_at        TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_appointments_data
+        ON appointments(data);
+      CREATE INDEX IF NOT EXISTS idx_appointments_profissional_data
+        ON appointments(profissional, data);
+    `,
+  },
+  {
+    id: '003_pets',
+    sql: `
+      CREATE TABLE IF NOT EXISTS pets (
+        id                TEXT PRIMARY KEY,
+        nome              TEXT NOT NULL,
+        tipo              TEXT NOT NULL,
+        raca              TEXT NOT NULL DEFAULT '',
+        porte             TEXT NOT NULL DEFAULT '',
+        sexo              TEXT NOT NULL DEFAULT '',
+        data_nascimento   TEXT NOT NULL DEFAULT '',
+        cor               TEXT NOT NULL DEFAULT '',
+        responsavel_nome  TEXT NOT NULL,
+        responsavel_tel   TEXT NOT NULL,
+        responsavel_email TEXT NOT NULL DEFAULT '',
+        observacoes       TEXT NOT NULL DEFAULT '',
+        ativo             INTEGER NOT NULL DEFAULT 1,
+        created_at        TEXT NOT NULL,
+        updated_at        TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_pets_responsavel_tel
+        ON pets(responsavel_tel);
+      CREATE INDEX IF NOT EXISTS idx_pets_nome
+        ON pets(nome);
+    `,
+  },
+  {
+    id: '003b_appointments_pet_id',
+    sql: `
+      ALTER TABLE appointments ADD COLUMN pet_id TEXT REFERENCES pets(id);
+    `,
+  },
 ]
 
+// ── Scheduling config ──────────────────────────────────────────────────────
+const SERVICE_DURATION = {
+  banho: 60,
+  tosa: 90,
+  banho_tosa: 120,
+  hidratacao: 60,
+  consulta_veterinaria: 30,
+  vacinacao: 20,
+  exame: 40,
+}
+
+const SERVICE_CAPACITY = {
+  banho: 2,
+  tosa: 2,
+  banho_tosa: 2,
+  hidratacao: 2,
+  consulta_veterinaria: 1,
+  vacinacao: 3,
+  exame: 1,
+}
+
+const SERVICE_LABEL = {
+  banho: 'Banho',
+  tosa: 'Tosa',
+  banho_tosa: 'Banho + Tosa',
+  hidratacao: 'Hidratação',
+  consulta_veterinaria: 'Consulta Veterinária',
+  vacinacao: 'Vacinação',
+  exame: 'Exame',
+}
+
+const PROFESSIONALS = {
+  banho_tosa: ['Dani', 'Marcos'],
+  clinica: ['Dr. Pedro', 'Dra. Ana'],
+}
+
+function serviceProfessionals(servicoTipo) {
+  if (['banho', 'tosa', 'banho_tosa', 'hidratacao'].includes(servicoTipo)) {
+    return PROFESSIONALS.banho_tosa
+  }
+  return PROFESSIONALS.clinica
+}
+
+/** Adds HH:MM + minutes → HH:MM (same day, no overflow guard needed for our ranges) */
+function addMinutes(hhmm, minutes) {
+  const [h, m] = hhmm.split(':').map(Number)
+  const total = h * 60 + m + minutes
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+/**
+ * Returns true if there is still capacity for the given slot.
+ * Capacity is per (profissional, data) pair — counts non-cancelled appointments
+ * whose time range overlaps [hora_inicio, hora_fim).
+ */
+function hasCapacity(data, hora_inicio, hora_fim, servico_tipo, profissional) {
+  const count = db
+    .prepare(
+      `SELECT COUNT(*) as cnt FROM appointments
+       WHERE profissional = ?
+         AND data = ?
+         AND status != 'cancelado'
+         AND hora_inicio < ?
+         AND hora_fim > ?`,
+    )
+    .get(profissional, data, hora_fim, hora_inicio).cnt
+
+  return count < (SERVICE_CAPACITY[servico_tipo] ?? 1)
+}
+
+// ── End scheduling config ───────────────────────────────────────────────────
+
+function timeZoneOffsetMinutes(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  const zonedAsUtc = Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+    Number(values.hour),
+    Number(values.minute),
+    Number(values.second),
+  )
+  return Math.round((zonedAsUtc - date.getTime()) / 60000)
+}
+
+function formatOffset(minutes) {
+  const sign = minutes >= 0 ? '+' : '-'
+  const absolute = Math.abs(minutes)
+  return `${sign}${String(Math.floor(absolute / 60)).padStart(2, '0')}:${String(absolute % 60).padStart(2, '0')}`
+}
+
 function nowIso() {
-  return new Date().toISOString()
+  const date = new Date()
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: appTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}${formatOffset(timeZoneOffsetMinutes(date, appTimeZone))}`
+}
+
+function nowTimestampMs() {
+  return Date.now()
 }
 
 function hashPassword(password) {
@@ -99,7 +274,7 @@ function hashPassword(password) {
 }
 
 function signToken(username) {
-  const payload = `${username}.${Date.now()}.${randomBytes(12).toString('hex')}`
+  const payload = `${username}.${nowTimestampMs()}.${randomBytes(12).toString('hex')}`
   const signature = createHmac('sha256', authSecret).update(payload).digest('hex')
   return `${payload}.${signature}`
 }
@@ -486,7 +661,7 @@ const updateStockStatement = db.prepare(`
 `)
 
 const createOrderTransaction = db.transaction((body) => {
-  const orderId = `pedido-${Date.now()}`
+  const orderId = `pedido-${nowTimestampMs()}`
   const timestamp = nowIso()
 
   insertOrderStatement.run(
@@ -681,6 +856,299 @@ const server = createServer(async (request, response) => {
       return
     }
 
+    // ── Pets ──────────────────────────────────────────────────────────────
+
+    // GET /api/pets/lookup?tel=  — público, para o booking flow
+    if (url.pathname === '/api/pets/lookup' && request.method === 'GET') {
+      const tel = (url.searchParams.get('tel') || '').replace(/\D/g, '')
+      if (!tel || tel.length < 8) {
+        sendJson(response, 400, { error: 'Telefone inválido.' })
+        return
+      }
+      const rows = db
+        .prepare(`SELECT * FROM pets WHERE replace(replace(replace(replace(responsavel_tel,' ',''),'-',''),'(',''),')','') LIKE ? AND ativo = 1 ORDER BY nome`)
+        .all(`%${tel}%`)
+      sendJson(response, 200, rows)
+      return
+    }
+
+    // GET /api/pets  — admin
+    if (url.pathname === '/api/pets' && request.method === 'GET') {
+      if (!requireAuth(request, response)) return
+      const busca  = url.searchParams.get('busca') || ''
+      const tipo   = url.searchParams.get('tipo') || ''
+      const ativo  = url.searchParams.get('ativo') || '1'
+
+      let query = 'SELECT * FROM pets WHERE 1=1'
+      const params = []
+      if (ativo !== '') { query += ' AND ativo = ?'; params.push(Number(ativo)) }
+      if (tipo)  { query += ' AND tipo = ?'; params.push(tipo) }
+      if (busca) {
+        query += ' AND (nome LIKE ? OR responsavel_nome LIKE ? OR responsavel_tel LIKE ?)'
+        const like = `%${busca}%`
+        params.push(like, like, like)
+      }
+      query += ' ORDER BY nome ASC'
+
+      const rows = db.prepare(query).all(...params)
+      sendJson(response, 200, rows)
+      return
+    }
+
+    // GET /api/pets/:id  — admin, retorna pet + histórico
+    const petIdMatch = url.pathname.match(/^\/api\/pets\/([^/]+)$/)
+    if (petIdMatch && request.method === 'GET') {
+      if (!requireAuth(request, response)) return
+      const id = decodeURIComponent(petIdMatch[1])
+      const pet = db.prepare('SELECT * FROM pets WHERE id = ?').get(id)
+      if (!pet) { sendJson(response, 404, { error: 'Pet não encontrado.' }); return }
+
+      // Busca histórico: por pet_id se vinculado, ou por nome+telefone como fallback
+      const history = db.prepare(`
+        SELECT * FROM appointments
+        WHERE (pet_id = ? OR (pet_nome = ? AND cliente_telefone = ?))
+        ORDER BY data DESC, hora_inicio DESC
+        LIMIT 50
+      `).all(id, pet.nome, pet.responsavel_tel)
+
+      sendJson(response, 200, { ...pet, historico: history })
+      return
+    }
+
+    // POST /api/pets  — admin
+    if (url.pathname === '/api/pets' && request.method === 'POST') {
+      if (!requireAuth(request, response)) return
+      const body = await parseBody(request)
+      if (!body.nome || !body.tipo || !body.responsavel_nome || !body.responsavel_tel) {
+        sendJson(response, 400, { error: 'Campos obrigatórios: nome, tipo, responsavel_nome, responsavel_tel.' })
+        return
+      }
+      const id  = `pet-${nowTimestampMs()}-${randomBytes(4).toString('hex')}`
+      const now = nowIso()
+      db.prepare(`
+        INSERT INTO pets
+          (id, nome, tipo, raca, porte, sexo, data_nascimento, cor,
+           responsavel_nome, responsavel_tel, responsavel_email,
+           observacoes, ativo, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+      `).run(
+        id,
+        body.nome,
+        body.tipo,
+        body.raca              || '',
+        body.porte             || '',
+        body.sexo              || '',
+        body.data_nascimento   || '',
+        body.cor               || '',
+        body.responsavel_nome,
+        body.responsavel_tel,
+        body.responsavel_email || '',
+        body.observacoes       || '',
+        now, now,
+      )
+      sendJson(response, 201, db.prepare('SELECT * FROM pets WHERE id = ?').get(id))
+      return
+    }
+
+    // PUT /api/pets/:id  — admin
+    if (petIdMatch && request.method === 'PUT') {
+      if (!requireAuth(request, response)) return
+      const id   = decodeURIComponent(petIdMatch[1])
+      const body = await parseBody(request)
+      const now  = nowIso()
+      const result = db.prepare(`
+        UPDATE pets SET
+          nome = ?, tipo = ?, raca = ?, porte = ?, sexo = ?,
+          data_nascimento = ?, cor = ?,
+          responsavel_nome = ?, responsavel_tel = ?, responsavel_email = ?,
+          observacoes = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        body.nome              ?? '',
+        body.tipo              ?? '',
+        body.raca              ?? '',
+        body.porte             ?? '',
+        body.sexo              ?? '',
+        body.data_nascimento   ?? '',
+        body.cor               ?? '',
+        body.responsavel_nome  ?? '',
+        body.responsavel_tel   ?? '',
+        body.responsavel_email ?? '',
+        body.observacoes       ?? '',
+        now,
+        id,
+      )
+      if (result.changes === 0) { sendJson(response, 404, { error: 'Pet não encontrado.' }); return }
+      sendJson(response, 200, db.prepare('SELECT * FROM pets WHERE id = ?').get(id))
+      return
+    }
+
+    // DELETE /api/pets/:id  — soft-delete
+    if (petIdMatch && request.method === 'DELETE') {
+      if (!requireAuth(request, response)) return
+      const id = decodeURIComponent(petIdMatch[1])
+      const result = db.prepare('UPDATE pets SET ativo = 0, updated_at = ? WHERE id = ?').run(nowIso(), id)
+      if (result.changes === 0) { sendJson(response, 404, { error: 'Pet não encontrado.' }); return }
+      response.writeHead(204); response.end()
+      return
+    }
+
+    // ── End pets ───────────────────────────────────────────────────────────
+
+    // ── Appointments ──────────────────────────────────────────────────────
+
+    if (url.pathname === '/api/appointments' && request.method === 'GET') {
+      if (!requireAuth(request, response)) return
+      const filterData = url.searchParams.get('data') || ''
+      const filterTipo = url.searchParams.get('servico_tipo') || ''
+      const filterStatus = url.searchParams.get('status') || ''
+
+      let query = 'SELECT * FROM appointments WHERE 1=1'
+      const params = []
+      if (filterData) { query += ' AND data = ?'; params.push(filterData) }
+      if (filterTipo) { query += ' AND servico_tipo = ?'; params.push(filterTipo) }
+      if (filterStatus) { query += ' AND status = ?'; params.push(filterStatus) }
+      query += ' ORDER BY data ASC, hora_inicio ASC'
+
+      const rows = db.prepare(query).all(...params)
+      sendJson(response, 200, rows)
+      return
+    }
+
+    if (url.pathname === '/api/appointments' && request.method === 'POST') {
+      const body = await parseBody(request)
+      if (!body) return
+
+      const required = ['cliente_nome', 'cliente_telefone', 'pet_nome', 'pet_tipo', 'pet_porte',
+                        'servico_tipo', 'profissional', 'data', 'hora_inicio']
+      for (const field of required) {
+        if (!body[field]) {
+          sendJson(response, 400, { error: `Campo obrigatório ausente: ${field}` })
+          return
+        }
+      }
+
+      const duration = SERVICE_DURATION[body.servico_tipo] ?? 60
+      const hora_fim = addMinutes(body.hora_inicio, duration)
+
+      if (!hasCapacity(body.data, body.hora_inicio, hora_fim, body.servico_tipo, body.profissional)) {
+        sendJson(response, 409, { error: 'Horário sem capacidade disponível para este serviço.' })
+        return
+      }
+
+      const id = `ag-${nowTimestampMs()}-${randomBytes(4).toString('hex')}`
+      const now = nowIso()
+      db.prepare(`
+        INSERT INTO appointments
+          (id, pet_id, cliente_nome, cliente_telefone, pet_nome, pet_tipo, pet_porte,
+           servico_tipo, servico_nome, profissional, data, hora_inicio, hora_fim,
+           status, observacoes, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      `).run(
+        id,
+        body.pet_id || null,
+        body.cliente_nome,
+        body.cliente_telefone,
+        body.pet_nome,
+        body.pet_tipo,
+        body.pet_porte,
+        body.servico_tipo,
+        body.servico_nome || SERVICE_LABEL[body.servico_tipo] || body.servico_tipo,
+        body.profissional,
+        body.data,
+        body.hora_inicio,
+        hora_fim,
+        'agendado',
+        body.observacoes || '',
+        now,
+      )
+
+      sendJson(response, 201, db.prepare('SELECT * FROM appointments WHERE id = ?').get(id))
+      return
+    }
+
+    const appointmentStatusMatch = url.pathname.match(/^\/api\/appointments\/([^/]+)\/status$/)
+    if (appointmentStatusMatch && request.method === 'PATCH') {
+      if (!requireAuth(request, response)) return
+      const id = decodeURIComponent(appointmentStatusMatch[1])
+      const body = await parseBody(request)
+      if (!body) return
+
+      const validStatuses = ['agendado', 'confirmado', 'em_atendimento', 'concluido', 'cancelado']
+      if (!validStatuses.includes(body.status)) {
+        sendJson(response, 400, { error: 'Status inválido.' })
+        return
+      }
+
+      const result = db.prepare('UPDATE appointments SET status = ? WHERE id = ?').run(body.status, id)
+      if (result.changes === 0) {
+        sendJson(response, 404, { error: 'Agendamento não encontrado.' })
+        return
+      }
+      sendJson(response, 200, db.prepare('SELECT * FROM appointments WHERE id = ?').get(id))
+      return
+    }
+
+    const appointmentDeleteMatch = url.pathname.match(/^\/api\/appointments\/([^/]+)$/)
+    if (appointmentDeleteMatch && request.method === 'DELETE') {
+      if (!requireAuth(request, response)) return
+      const id = decodeURIComponent(appointmentDeleteMatch[1])
+      const result = db.prepare('DELETE FROM appointments WHERE id = ?').run(id)
+      if (result.changes === 0) {
+        sendJson(response, 404, { error: 'Agendamento não encontrado.' })
+        return
+      }
+      response.writeHead(204)
+      response.end()
+      return
+    }
+
+    if (url.pathname === '/api/appointments/slots' && request.method === 'GET') {
+      const data = url.searchParams.get('data') || ''
+      const servicoTipo = url.searchParams.get('servico_tipo') || ''
+      if (!data || !servicoTipo) {
+        sendJson(response, 400, { error: 'Parâmetros data e servico_tipo são obrigatórios.' })
+        return
+      }
+
+      const duration = SERVICE_DURATION[servicoTipo] ?? 60
+      const professionals = serviceProfessionals(servicoTipo)
+      // Slots: 08:00 to 18:00 in 30-minute increments
+      const startHour = 8 * 60
+      const endHour = 18 * 60
+      const slots = []
+
+      for (let min = startHour; min + duration <= endHour; min += 30) {
+        const hora_inicio = `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+        const hora_fim = addMinutes(hora_inicio, duration)
+
+        for (const profissional of professionals) {
+          const capacity = SERVICE_CAPACITY[servicoTipo] ?? 1
+          const count = db
+            .prepare(
+              `SELECT COUNT(*) as cnt FROM appointments
+               WHERE profissional = ? AND data = ? AND status != 'cancelado'
+               AND hora_inicio < ? AND hora_fim > ?`,
+            )
+            .get(profissional, data, hora_fim, hora_inicio).cnt
+
+          slots.push({
+            hora_inicio,
+            hora_fim,
+            profissional,
+            capacity,
+            booked: count,
+            available: count < capacity,
+          })
+        }
+      }
+
+      sendJson(response, 200, slots)
+      return
+    }
+
+    // ── End appointments ──────────────────────────────────────────────────
+
     notFound(response)
   } catch (error) {
     sendJson(response, 500, {
@@ -691,7 +1159,7 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(serverPort, () => {
-  console.log(`Pedido Direto API ativa em http://localhost:${serverPort}`)
+  console.log(`Farmavet API ativa em http://localhost:${serverPort}`)
   console.log(`Login admin inicial: ${defaultAdminUser} / ${defaultAdminPassword}`)
   console.log(`Banco SQLite em ${sqlitePath}`)
 })

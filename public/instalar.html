@@ -2,14 +2,20 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="application-name" content="Farmavet" />
+    <meta name="description" content="Instale o Farmavet no iPhone ou Android." />
     <meta name="theme-color" content="#c82e24" />
+    <meta name="color-scheme" content="light" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Farmavet" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/pwa-icon-192.png" />
-    <title>Instalar Pedido Direto</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-startup-image" href="/apple-splash-1290-2796.png" media="(orientation: portrait)" />
+    <title>Instalar Farmavet</title>
     <style>
       :root {
         color: #2b1406;
@@ -124,19 +130,18 @@
   <body>
     <main>
       <header>
-        <h1>Pedido Direto</h1>
-        <p>Instale o app Android para abrir em tela cheia, sem barra do Chrome.</p>
+        <h1>Farmavet App</h1>
+        <p>Instale na tela inicial do celular e abra em tela cheia, sem barra do navegador.</p>
       </header>
 
       <section class="qr-panel">
-        <img src="/install-qr.png" alt="QR Code para abrir a instalacao do app" />
-        <a class="action" href="/totem-bite.apk" download>Baixar app tela cheia</a>
-        <button id="install" class="action secondary" type="button" disabled>Instalar pelo Chrome</button>
+        <img src="/install-qr.png" alt="QR Code para abrir a instalação do app" />
+        <button id="install" class="action" type="button" disabled>Instalar app (Chrome / Android)</button>
         <a class="action secondary" href="/">Abrir no navegador</a>
       </section>
 
       <section class="status">
-        <p id="message" class="note">Use o botao principal para baixar o APK. Se o Android bloquear, permita instalar apps deste navegador.</p>
+        <p id="message" class="note">No Android: aguarde o botão "Instalar pelo Chrome" ficar ativo. No iPhone: use Safari → Compartilhar → Adicionar à Tela Inicial.</p>
         <p><code id="current-url">Carregando link...</code></p>
       </section>
     </main>
@@ -164,15 +169,15 @@
           ['localhost', '127.0.0.1'].includes(location.hostname)
 
         message.textContent = isSecure
-          ? 'Se o botao nao liberar, abra pelo Chrome e aguarde alguns segundos.'
-          : 'Para instalacao direta igual ao TotemCafe, este link precisa estar em HTTPS. Em IP local HTTP o Android normalmente bloqueia o instalador PWA.'
+          ? 'Se o botão não liberar, abra pelo Chrome e aguarde alguns segundos.'
+          : 'Para instalação direta igual ao TotemCafe, este link precisa estar em HTTPS. Em IP local HTTP o Android normalmente bloqueia o instalador PWA.'
       }
 
       window.addEventListener('beforeinstallprompt', (event) => {
         event.preventDefault()
         deferredPrompt = event
         installButton.disabled = false
-        message.textContent = 'Instalacao pronta. Toque no botao para abrir como app em tela cheia.'
+        message.textContent = 'Instalação pronta. Toque no botão para abrir como app em tela cheia.'
       })
 
       window.addEventListener('appinstalled', () => {

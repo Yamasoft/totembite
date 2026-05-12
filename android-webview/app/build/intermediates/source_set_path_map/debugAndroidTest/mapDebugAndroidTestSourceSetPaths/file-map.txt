@@ -1,4 +1,0 @@
-br.com.totembite.webview.test.app-androidTest-0 C:\App_compras\android-webview\app\build\generated\res\resValues\androidTest\debug
-br.com.totembite.webview.test.app-mergeDebugAndroidTestResources-1 C:\App_compras\android-webview\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-br.com.totembite.webview.test.app-mergeDebugAndroidTestResources-2 C:\App_compras\android-webview\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-br.com.totembite.webview.test.app-debugAndroidTest-3 C:\App_compras\android-webview\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

@@ -1,8 +1,24 @@
 const adminTokenStorageKey = 'totem-bite-admin-token'
 const customerTokenStorageKey = 'totem-bite-customer-token'
 
+function apiBaseUrl() {
+  const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim()
+  if (configuredBase) {
+    return configuredBase.replace(/\/+$/, '')
+  }
+  return window.location.origin
+}
+
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) {
+    return path
+  }
+  return new URL(path, apiBaseUrl()).toString()
+}
+
 async function request(path, options = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(apiUrl(path), {
+    cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
@@ -14,10 +30,24 @@ async function request(path, options = {}) {
     return null
   }
 
-  const payload = await response.json()
+  const rawBody = await response.text()
+  const trimmedBody = rawBody.trim()
+  let payload = null
+
+  if (trimmedBody) {
+    try {
+      payload = JSON.parse(trimmedBody)
+    } catch {
+      throw new Error(`Resposta invalida do servidor (${response.status}).`)
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(payload.error || 'Falha na requisicao.')
+    if (payload && typeof payload === 'object') {
+      throw new Error(payload.error || payload.message || `Falha na requisicao (${response.status}).`)
+    }
+
+    throw new Error(`Falha na requisicao (${response.status}).`)
   }
 
   return payload
@@ -177,6 +207,13 @@ export function updateOrderPayment(orderId, token) {
   })
 }
 
+export function cancelOrder(orderId, statusToken) {
+  return request(`/api/orders/${encodeURIComponent(orderId)}/cancel`, {
+    method: 'PUT',
+    body: JSON.stringify({ statusToken }),
+  })
+}
+
 export function loginCustomer(credentials) {
   return request('/api/customers/login', {
     method: 'POST',
@@ -220,6 +257,92 @@ export function findCustomerByPhone(phone) {
 
 export function fetchPixStatus(txid) {
   return request(`/api/pix/status/${encodeURIComponent(txid)}`)
+}
+
+// ── Pets ────────────────────────────────────────────────────────────────────
+
+export function fetchPets({ busca = '', tipo = '', ativo = '1' } = {}, token) {
+  const params = new URLSearchParams()
+  if (busca) params.set('busca', busca)
+  if (tipo)  params.set('tipo', tipo)
+  if (ativo !== '') params.set('ativo', ativo)
+  const qs = params.toString()
+  return request(`/api/pets${qs ? `?${qs}` : ''}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function fetchPet(id, token) {
+  return request(`/api/pets/${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function lookupPetsByPhone(tel) {
+  return request(`/api/pets/lookup?tel=${encodeURIComponent(tel)}`)
+}
+
+export function createPet(payload, token) {
+  return request('/api/pets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updatePet(id, payload, token) {
+  return request(`/api/pets/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deletePet(id, token) {
+  return request(`/api/pets/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+// ── Appointments ────────────────────────────────────────────────────────────
+
+export function fetchAppointments({ data = '', servico_tipo = '', status = '' } = {}, token) {
+  const params = new URLSearchParams()
+  if (data) params.set('data', data)
+  if (servico_tipo) params.set('servico_tipo', servico_tipo)
+  if (status) params.set('status', status)
+  const qs = params.toString()
+  return request(`/api/appointments${qs ? `?${qs}` : ''}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export function fetchAppointmentSlots({ data, servico_tipo }) {
+  const params = new URLSearchParams({ data, servico_tipo })
+  return request(`/api/appointments/slots?${params}`)
+}
+
+export function createAppointment(payload) {
+  return request('/api/appointments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAppointmentStatus(id, status, token) {
+  return request(`/api/appointments/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  })
+}
+
+export function deleteAppointment(id, token) {
+  return request(`/api/appointments/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
 }
 
 export function requestCustomerPasswordReset(payload) {

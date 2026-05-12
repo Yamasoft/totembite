@@ -1,5 +1,5 @@
 {
-  "name": "app-compras",
+  "name": "farmavet",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,13 +8,16 @@
     "dev": "vite",
     "dev:all": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-all.ps1",
     "dev:kiosk": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-kiosk.ps1",
-    "server": "python server/app.py",
+    "server": "node server/index.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "vite build && wrangler deploy",
+    "deploy:dry": "vite build && wrangler deploy --dry-run"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
@@ -27,6 +30,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.5.0",
-    "vite": "^8.0.10"
+    "vite": "^8.0.10",
+    "wrangler": "^4.90.0"
   }
 }

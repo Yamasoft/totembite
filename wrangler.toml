@@ -1,0 +1,14 @@
+name            = "pet"
+account_id      = "a0fc857ecf829a788a5499f86ad4c634"
+main            = "worker.js"
+compatibility_date = "2025-05-01"
+
+# Assets estáticos — Vite build → dist/
+[assets]
+directory = "./dist"
+binding   = "ASSETS"
+
+# Variáveis de ambiente somente no Worker (não expostas ao frontend)
+[vars]
+APP_NAME = "Farmavet"
+APP_ENV  = "demo"

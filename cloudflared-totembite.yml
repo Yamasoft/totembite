@@ -1,0 +1,15 @@
+tunnel: f86f798c-23d5-4034-877c-0c7e9e4fa14d
+credentials-file: C:\Users\Roberto\.cloudflared\f86f798c-23d5-4034-877c-0c7e9e4fa14d.json
+
+ingress:
+  - hostname: app-totembite.yamasoft.com.br
+    path: /api/.*
+    service: http://localhost:3001
+  - hostname: app-totembite.yamasoft.com.br
+    service: http://localhost:3001
+  - hostname: totembite.yamasoft.com.br
+    path: /api/.*
+    service: http://localhost:3001
+  - hostname: totembite.yamasoft.com.br
+    service: http://localhost:3001
+  - service: http_status:404

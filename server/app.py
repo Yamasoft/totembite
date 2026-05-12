@@ -9,10 +9,14 @@ import secrets
 import sqlite3
 import sys
 import uuid
+import ssl
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.request import Request, urlopen
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -25,14 +29,30 @@ SERVER_PORT = int(os.getenv("TOTEM_BITE_PORT", "3001"))
 AUTH_SECRET = os.getenv("ADMIN_AUTH_SECRET", "totem-bite-local-secret")
 DEFAULT_ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 DEFAULT_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "SenhaTemp123!")
-TOTEMCAFE_SITE_PACKAGES = Path(r"C:\TotemCafe\.venv\Lib\site-packages")
-if TOTEMCAFE_SITE_PACKAGES.exists() and str(TOTEMCAFE_SITE_PACKAGES) not in sys.path:
-    sys.path.append(str(TOTEMCAFE_SITE_PACKAGES))
+try:
+    APP_TIMEZONE = ZoneInfo("America/Sao_Paulo")
+except ZoneInfoNotFoundError:
+    APP_TIMEZONE = datetime.now().astimezone().tzinfo
 
 try:
     import qrcode
 except Exception:
     qrcode = None
+
+try:
+    from pix_totemcafe import api as LOCAL_PIX_API
+    from pix_totemcafe.auth import APP_KEY as PIX_APP_KEY
+    from pix_totemcafe.auth import AMBIENTE as PIX_AMBIENTE
+    from pix_totemcafe.auth import CLIENT_ID as PIX_CLIENT_ID
+    from pix_totemcafe.auth import CLIENT_SECRET as PIX_CLIENT_SECRET
+    from pix_totemcafe.auth import CHAVE_PIX as PIX_CHAVE
+except Exception:
+    LOCAL_PIX_API = None
+    PIX_APP_KEY = ""
+    PIX_AMBIENTE = "production"
+    PIX_CLIENT_ID = ""
+    PIX_CLIENT_SECRET = ""
+    PIX_CHAVE = ""
 
 CATEGORIES = [
     {"id": "lanches", "label": "Lanches"},
@@ -43,9 +63,9 @@ CATEGORIES = [
 INITIAL_PROMOTIONS = [
     {
         "id": "promo-1",
-        "tag": "Hora do almoco",
-        "title": "Smash + batata por preco fechado",
-        "description": "Oferta valida ate 15h para pedidos feitos no app.",
+        "tag": "Hora do almoço",
+        "title": "Smash + batata por preço fechado",
+        "description": "Oferta válida até 15h para pedidos feitos no app.",
         "highlight": "R$ 29,90",
     },
     {
@@ -68,7 +88,7 @@ INITIAL_PRODUCTS = [
     {
         "id": "burger-brasa",
         "name": "Brasa Smash Bacon",
-        "description": "Pao selado, burger de 120g, cheddar cremoso, bacon crocante e maionese da casa.",
+        "description": "Pão selado, burger de 120g, cheddar cremoso, bacon crocante e maionese da casa.",
         "category": "lanches",
         "categoryLabel": "Lanche",
         "price": 28.9,
@@ -80,7 +100,7 @@ INITIAL_PRODUCTS = [
     {
         "id": "combo-duplo",
         "name": "Combo Brasa Dupla",
-        "description": "Dois smash burgers, frita rustica grande e dois refrigerantes de 350 ml.",
+        "description": "Dois smash burgers, frita rústica grande e dois refrigerantes de 350 ml.",
         "category": "lanches",
         "categoryLabel": "Combo",
         "price": 54.9,
@@ -92,7 +112,7 @@ INITIAL_PRODUCTS = [
     {
         "id": "frango-crispy",
         "name": "Chicken Crisp",
-        "description": "File de frango empanado, alface fresca, picles agridoce e molho especial.",
+        "description": "Filé de frango empanado, alface fresca, picles agridoce e molho especial.",
         "category": "lanches",
         "categoryLabel": "Lanche",
         "price": 26.5,
@@ -103,8 +123,8 @@ INITIAL_PRODUCTS = [
     },
     {
         "id": "soda-citrica",
-        "name": "Soda Citrica Artesanal",
-        "description": "Bebida gaseificada de limao siciliano com hortela e gelo triturado.",
+        "name": "Soda Cítrica Artesanal",
+        "description": "Bebida gaseificada de limão siciliano com hortelã e gelo triturado.",
         "category": "bebidas",
         "categoryLabel": "Bebida",
         "price": 12.9,
@@ -128,7 +148,7 @@ INITIAL_PRODUCTS = [
     {
         "id": "brownie-duplo",
         "name": "Brownie Recheado Duo",
-        "description": "Brownie umido com ganache, doce de leite e toque de flor de sal.",
+        "description": "Brownie úmido com ganache, doce de leite e toque de flor de sal.",
         "category": "doces",
         "categoryLabel": "Doce",
         "price": 14.9,
@@ -158,15 +178,78 @@ PAYMENT_METHODS = [
 ]
 
 ORDER_STATUSES = {
+    "awaiting_payment": "Aguardando pagamento",
     "received": "Recebido pela cozinha",
     "preparing": "Em preparo",
     "ready": "Pronto para retirada",
     "finished": "Retirado / Finalizado",
+    "cancelled": "Cancelado",
 }
+
+PIX_PROVIDER = os.getenv("PIX_PROVIDER", "bb").strip().lower()
+PIX_SOLICITACAO_PAGADOR = os.getenv("PIX_SOLICITACAO_PAGADOR", "Pedido Direto").strip()
+
+
+def _pix_real_enabled() -> bool:
+    return LOCAL_PIX_API is not None and PIX_PROVIDER == "bb" and bool(PIX_CHAVE)
+
+
+def _pix_build_emv(txid: str, total_centavos: int) -> str:
+    valor = f"{total_centavos / 100:.2f}"
+    return (
+        "00020126580014BR.GOV.BCB.PIX"
+        "52040000"
+        "5303986"
+        f"540{len(valor):02d}{valor}"
+        "5802BR"
+        "5910TOTEM BITE"
+        "6009SAO PAULO"
+        f"621305{txid}"
+        "6304ABCD"
+    )
+
+
+def _pix_qr_png_base64(payload: str):
+    if not qrcode:
+        return None
+
+    image = qrcode.make(payload)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _pix_create_real_charge(total_reais: float, title: str):
+    if LOCAL_PIX_API is None:
+        raise RuntimeError("Modulo PIX local nao carregou.")
+
+    resp = LOCAL_PIX_API.criar_cobranca(total_reais, PIX_CHAVE)
+    txid = (resp or {}).get("txid")
+    emv = (
+        (resp or {}).get("pixCopiaECola")
+        or (resp or {}).get("payload")
+        or ((resp or {}).get("qrcode") or {}).get("emv")
+    )
+    if not txid or not emv:
+        raise RuntimeError(f"PIX criado, mas o BR Code nao foi retornado pelo PSP: {resp!r}")
+
+    return {
+        "txid": txid,
+        "payload": emv,
+        "pixCopiaECola": emv,
+        "qrPngBase64": _pix_qr_png_base64(emv),
+        "provider": "bb",
+        "sandbox": False,
+        "status": "PENDENTE",
+    }
 
 
 def now_iso():
-    return datetime.utcnow().isoformat()
+    return datetime.now(APP_TIMEZONE).replace(microsecond=0).isoformat()
+
+
+def now_timestamp_ms():
+    return int(datetime.now(APP_TIMEZONE).timestamp() * 1000)
 
 
 def hash_password(password: str) -> str:
@@ -174,7 +257,7 @@ def hash_password(password: str) -> str:
 
 
 def sign_token(subject: str, token_type: str = "admin") -> str:
-    payload = f"{token_type}.{subject}.{int(datetime.utcnow().timestamp() * 1000)}.{secrets.token_hex(12)}"
+    payload = f"{token_type}.{subject}.{now_timestamp_ms()}.{secrets.token_hex(12)}"
     signature = hmac.new(AUTH_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{signature}"
 
@@ -281,6 +364,10 @@ def apply_migrations():
               status TEXT NOT NULL,
               payment_method TEXT NOT NULL DEFAULT 'pix',
               payment_status TEXT NOT NULL DEFAULT 'pending',
+              tipo_entrega TEXT,
+              status_pagamento TEXT,
+              forma_pagamento TEXT,
+              texto_forma_pagamento TEXT,
               pix_txid TEXT,
               pix_payload TEXT,
               status_token TEXT,
@@ -313,6 +400,14 @@ def apply_migrations():
             conn.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'pix'")
         if "payment_status" not in order_columns:
             conn.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'pending'")
+        if "tipo_entrega" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN tipo_entrega TEXT")
+        if "status_pagamento" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN status_pagamento TEXT")
+        if "forma_pagamento" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN forma_pagamento TEXT")
+        if "texto_forma_pagamento" not in order_columns:
+            conn.execute("ALTER TABLE orders ADD COLUMN texto_forma_pagamento TEXT")
         if "customer_id" not in order_columns:
             conn.execute("ALTER TABLE orders ADD COLUMN customer_id TEXT")
         if "customer_email" not in order_columns:
@@ -474,25 +569,41 @@ def row_to_order(conn, row):
         "SELECT product_id, name, price, quantity FROM order_items WHERE order_id = ? ORDER BY id",
         (row["id"],),
     ).fetchall()
+    mode = row["mode"]
+    status = row["status"]
+    forma_pagamento = row["forma_pagamento"] if "forma_pagamento" in row.keys() and row["forma_pagamento"] else row["payment_method"]
+    status_pagamento = row["status_pagamento"] if "status_pagamento" in row.keys() and row["status_pagamento"] else (
+        "pago" if row["payment_status"] == "paid" else "pendente"
+    )
+    texto_forma_pagamento = row["texto_forma_pagamento"] if "texto_forma_pagamento" in row.keys() and row["texto_forma_pagamento"] else (
+        "PIX" if forma_pagamento == "pix" else forma_pagamento.replace("_", " ").title()
+    )
+    tipo_entrega = row["tipo_entrega"] if "tipo_entrega" in row.keys() and row["tipo_entrega"] else (
+        "entrega" if mode == "delivery" else "retirada"
+    )
     return {
         "id": row["id"],
         "number": row["id"].split("-")[-1][-3:],
         "createdAt": row["created_at"],
         "customerId": row["customer_id"],
         "customerEmail": row["customer_email"],
-        "mode": row["mode"],
+        "mode": mode,
+        "tipoEntrega": tipo_entrega,
         "customerName": row["customer_name"],
         "phone": row["phone"],
         "address": row["address"],
         "subtotal": row["subtotal"],
         "deliveryFee": row["delivery_fee"],
         "total": row["total"],
-        "status": row["status"],
-        "statusLabel": ORDER_STATUSES.get(row["status"], row["status"]),
+        "status": status,
+        "statusLabel": order_status_label(status, mode),
         "statusToken": row["status_token"] if "status_token" in row.keys() else None,
         "statusUpdatedAt": row["status_updated_at"] if "status_updated_at" in row.keys() else None,
         "paymentMethod": row["payment_method"],
         "paymentStatus": row["payment_status"],
+        "formaPagamento": forma_pagamento,
+        "statusPagamento": status_pagamento,
+        "textoFormaPagamento": texto_forma_pagamento,
         "pixTxid": row["pix_txid"] if "pix_txid" in row.keys() else None,
         "items": [
             {
@@ -507,16 +618,34 @@ def row_to_order(conn, row):
     }
 
 
+def order_status_label(status, mode="pickup"):
+    if mode == "delivery":
+        if status == "ready":
+            return "Saiu para entrega"
+        if status == "finished":
+            return "Entregue / Finalizado"
+    return ORDER_STATUSES.get(status, status)
+
+
 def public_order_status(conn, row):
     order = row_to_order(conn, row)
     return {
         "id": order["id"],
         "number": order["number"],
         "createdAt": order["createdAt"],
+        "mode": order["mode"],
+        "tipoEntrega": order["tipoEntrega"],
+        "address": order["address"],
         "status": order["status"],
         "statusLabel": order["statusLabel"],
         "statusUpdatedAt": order["statusUpdatedAt"],
+        "deliveryFee": order["deliveryFee"],
         "total": order["total"],
+        "paymentMethod": order["paymentMethod"],
+        "paymentStatus": order["paymentStatus"],
+        "formaPagamento": order["formaPagamento"],
+        "statusPagamento": order["statusPagamento"],
+        "textoFormaPagamento": order["textoFormaPagamento"],
         "items": order["items"],
     }
 
@@ -533,31 +662,17 @@ def dashboard_summary(conn):
 
 
 def fake_pix_emv(txid: str, total_centavos: int) -> str:
-    valor = f"{total_centavos / 100:.2f}"
-    return (
-        "00020126580014BR.GOV.BCB.PIX"
-        "52040000"
-        "5303986"
-        f"540{len(valor):02d}{valor}"
-        "5802BR"
-        "5910TOTEM BITE"
-        "6009SAO PAULO"
-        f"621305{txid}"
-        "6304ABCD"
-    )
+    return _pix_build_emv(txid, total_centavos)
 
 
 def qr_png_base64(payload: str):
-    if not qrcode:
-        return None
-
-    image = qrcode.make(payload)
-    buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
+    return _pix_qr_png_base64(payload)
 
 
-def create_pix_payload(total_reais: float):
+def create_pix_payload(total_reais: float, title: str = PIX_SOLICITACAO_PAGADOR):
+    if _pix_real_enabled():
+        return _pix_create_real_charge(total_reais, title)
+
     total_centavos = int(round(float(total_reais) * 100))
     txid = uuid.uuid4().hex[:20].upper()
     payload = fake_pix_emv(txid, total_centavos)
@@ -566,9 +681,49 @@ def create_pix_payload(total_reais: float):
         "payload": payload,
         "pixCopiaECola": payload,
         "qrPngBase64": qr_png_base64(payload),
-        "status": "PENDENTE",
+        "provider": "sandbox",
         "sandbox": True,
+        "status": "SIMULADO",
     }
+
+
+def pix_status_is_paid(status: str) -> bool:
+    return (status or "").upper() in ("CONCLUIDA", "CONCLUIDO", "LIQUIDADO", "PAGO")
+
+
+def refresh_pending_pix_orders(conn, limit=20):
+    if not _pix_real_enabled():
+        return
+
+    rows = conn.execute(
+        """
+        SELECT id, pix_txid FROM orders
+        WHERE payment_method = 'pix'
+          AND payment_status = 'pending'
+          AND status = 'awaiting_payment'
+          AND pix_txid IS NOT NULL
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+
+    changed = False
+    for row in rows:
+        try:
+            real_status = (LOCAL_PIX_API.status_cobranca(row["pix_txid"]) or "").upper()  # type: ignore[union-attr]
+        except Exception:
+            continue
+
+        if pix_status_is_paid(real_status):
+            conn.execute(
+                "UPDATE orders SET payment_status = ?, status = ?, status_updated_at = ? WHERE id = ?",
+                ("paid", "received", now_iso(), row["id"]),
+            )
+            changed = True
+
+    if changed:
+        conn.commit()
 
 
 apply_migrations()
@@ -693,11 +848,13 @@ class AppHandler(BaseHTTPRequestHandler):
             if path == "/api/orders":
                 if not self._require_admin_auth():
                     return
+                refresh_pending_pix_orders(conn)
                 rows = conn.execute("SELECT * FROM orders ORDER BY created_at DESC LIMIT 50").fetchall()
                 self._send_json(200, [row_to_order(conn, row) for row in rows])
                 return
 
             if path == "/api/kitchen/orders":
+                refresh_pending_pix_orders(conn)
                 rows = conn.execute(
                     """
                     SELECT * FROM orders
@@ -806,17 +963,93 @@ class AppHandler(BaseHTTPRequestHandler):
             if path.startswith("/api/pix/status/"):
                 txid = path.split("/")[-1]
                 row = conn.execute(
-                    "SELECT id, payment_status FROM orders WHERE pix_txid = ? LIMIT 1",
+                    "SELECT * FROM orders WHERE pix_txid = ? LIMIT 1",
                     (txid,),
                 ).fetchone()
+                if not row:
+                    self._send_json(200, {"txid": txid, "status": "PENDENTE", "orderId": None})
+                    return
+
+                order_status = row["status"]
+                payment_status = row["payment_status"]
+                pix_status = "CONCLUIDO" if payment_status == "paid" else "PENDENTE"
+
+                if payment_status == "cancelled" or order_status == "cancelled":
+                    self._send_json(
+                        200,
+                        {
+                            "txid": txid,
+                            "status": "CANCELADO",
+                            "orderId": row["id"],
+                            "orderStatus": "cancelled",
+                            "paymentStatus": "cancelled",
+                        },
+                    )
+                    return
+
+                if payment_status != "paid" and _pix_real_enabled():
+                    try:
+                        real_status = (LOCAL_PIX_API.status_cobranca(txid) or "").upper()  # type: ignore[union-attr]
+                    except Exception:
+                        real_status = ""
+
+                    if pix_status_is_paid(real_status):
+                        conn.execute(
+                            "UPDATE orders SET payment_status = ?, status = ?, status_updated_at = ? WHERE id = ?",
+                            ("paid", "received", now_iso(), row["id"]),
+                        )
+                        conn.commit()
+                        pix_status = "CONCLUIDO"
+                        order_status = "received"
+                        payment_status = "paid"
+                    elif real_status in ("REMOVIDA_PELO_USUARIO_RECEBEDOR", "REMOVIDA_PELO_PSP", "EXPIRADA", "EXPIRADO"):
+                        pix_status = real_status
+                    elif real_status:
+                        pix_status = "PENDENTE"
+
                 self._send_json(
                     200,
                     {
                         "txid": txid,
-                        "status": "CONCLUIDO" if row and row["payment_status"] == "paid" else "PENDENTE",
-                        "orderId": row["id"] if row else None,
+                        "status": pix_status,
+                        "orderId": row["id"],
+                        "orderStatus": order_status,
+                        "paymentStatus": payment_status,
                     },
                 )
+                return
+
+            if path.startswith("/verificar_pagamento/"):
+                txid = path.split("/")[-1]
+                row = conn.execute(
+                    "SELECT * FROM orders WHERE pix_txid = ? LIMIT 1",
+                    (txid,),
+                ).fetchone()
+                if not row:
+                    self._send_json(200, {"status": "PENDENTE"})
+                    return
+
+                payment_status = row["payment_status"]
+                if payment_status != "paid" and _pix_real_enabled():
+                    try:
+                        real_status = (LOCAL_PIX_API.status_cobranca(txid) or "").upper()  # type: ignore[union-attr]
+                    except Exception as exc:
+                        self._send_json(502, {"status": "ERRO", "detalhe": str(exc)})
+                        return
+
+                    if pix_status_is_paid(real_status):
+                        conn.execute(
+                            "UPDATE orders SET payment_status = ?, status = ?, status_updated_at = ? WHERE id = ?",
+                            ("paid", "received", now_iso(), row["id"]),
+                        )
+                        conn.commit()
+                        self._send_json(200, {"status": "CONCLUIDO", "orderId": row["id"]})
+                        return
+
+                    self._send_json(200, {"status": "PENDENTE", "orderId": row["id"]})
+                    return
+
+                self._send_json(200, {"status": "CONCLUIDO", "orderId": row["id"]})
                 return
 
             self._serve_static_app(path)
@@ -898,7 +1131,7 @@ class AppHandler(BaseHTTPRequestHandler):
                 if existing:
                     self._send_json(409, {"error": "Ja existe cadastro com esse e-mail."})
                     return
-                customer_id = f"customer-{int(datetime.utcnow().timestamp() * 1000)}"
+                customer_id = f"customer-{now_timestamp_ms()}"
                 timestamp = now_iso()
                 conn.execute(
                     """
@@ -1069,15 +1302,34 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/orders":
-                order_id = f"pedido-{int(datetime.utcnow().timestamp() * 1000)}"
+                order_id = f"pedido-{now_timestamp_ms()}"
                 timestamp = now_iso()
                 payment_method = body.get("paymentMethod", "pix")
-                payment_payload = create_pix_payload(float(body["total"])) if payment_method == "pix" else None
+                payment_payload = None
+                order_status = "received"
                 payment_status = body.get("paymentStatus", "paid")
+                if payment_method == "pix":
+                    try:
+                        payment_payload = create_pix_payload(float(body["total"]), f"Pedido {order_id[-6:]}")
+                    except (HTTPError, URLError, RuntimeError, FileNotFoundError, ssl.SSLError) as exc:
+                        self._send_json(502, {"error": f"Falha ao criar cobranca Pix: {exc}"})
+                        return
+                    if payment_payload.get("sandbox"):
+                        payment_status = "paid"
+                        order_status = "received"
+                    else:
+                        payment_status = "pending"
+                        order_status = "awaiting_payment"
+                tipo_entrega = body.get("tipoEntrega") or ("entrega" if body.get("mode") == "delivery" else "retirada")
+                status_pagamento = ("pago" if payment_status == "paid" else "pendente") if payment_method == "pix" else (
+                    body.get("statusPagamento") or ("pago" if payment_status == "paid" else "pendente")
+                )
+                forma_pagamento = body.get("formaPagamento") or payment_method
+                texto_forma_pagamento = body.get("textoFormaPagamento") or ("PIX" if forma_pagamento == "pix" else forma_pagamento.replace("_", " ").title())
                 status_token = secrets.token_urlsafe(12)
                 customer_auth = decode_token(self._bearer_token())
                 customer_id = None
-                customer_email = None
+                customer_email = (body.get("customerEmail") or body.get("email") or "").strip().lower() or None
                 if customer_auth and customer_auth["type"] == "customer":
                     customer_row = conn.execute(
                         "SELECT id, email FROM customer_users WHERE id = ?",
@@ -1089,8 +1341,8 @@ class AppHandler(BaseHTTPRequestHandler):
                 conn.execute(
                     """
                     INSERT INTO orders (
-                      id, created_at, customer_id, customer_email, mode, customer_name, phone, address, subtotal, delivery_fee, total, status, payment_method, payment_status, pix_txid, pix_payload, status_token, status_updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      id, created_at, customer_id, customer_email, mode, customer_name, phone, address, subtotal, delivery_fee, total, status, payment_method, payment_status, tipo_entrega, status_pagamento, forma_pagamento, texto_forma_pagamento, pix_txid, pix_payload, status_token, status_updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         order_id,
@@ -1104,9 +1356,13 @@ class AppHandler(BaseHTTPRequestHandler):
                         float(body["subtotal"]),
                         float(body["deliveryFee"]),
                         float(body["total"]),
-                        "received",
+                        order_status,
                         payment_method,
                         payment_status,
+                        tipo_entrega,
+                        status_pagamento,
+                        forma_pagamento,
+                        texto_forma_pagamento,
                         payment_payload["txid"] if payment_payload else None,
                         payment_payload["payload"] if payment_payload else None,
                         status_token,
@@ -1234,6 +1490,31 @@ class AppHandler(BaseHTTPRequestHandler):
                 conn.execute(
                     "UPDATE orders SET payment_status = ?, status = ? WHERE id = ?",
                     ("paid", "confirmado", order_id),
+                )
+                conn.commit()
+                self._send_json(200, {"ok": True})
+                return
+
+            if path.startswith("/api/orders/") and path.endswith("/cancel"):
+                order_id = path.split("/")[-2]
+                status_token = (body.get("statusToken") or "").strip()
+                row = conn.execute(
+                    "SELECT id, status_token, payment_status FROM orders WHERE id = ? LIMIT 1",
+                    (order_id,),
+                ).fetchone()
+                if not row:
+                    self._send_json(404, {"error": "Pedido nao encontrado."})
+                    return
+                if not status_token or row["status_token"] != status_token:
+                    self._send_json(403, {"error": "Token do pedido invalido."})
+                    return
+                if row["payment_status"] == "paid":
+                    self._send_json(409, {"error": "Pedido ja pago. Nao e possivel cancelar por aqui."})
+                    return
+
+                conn.execute(
+                    "UPDATE orders SET payment_status = ?, status = ?, status_updated_at = ? WHERE id = ?",
+                    ("cancelled", "cancelled", now_iso(), order_id),
                 )
                 conn.commit()
                 self._send_json(200, {"ok": True})

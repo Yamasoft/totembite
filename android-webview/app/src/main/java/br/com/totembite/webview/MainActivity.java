@@ -13,7 +13,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 public class MainActivity extends Activity {
-    private static final String APP_URL = "http://192.168.15.13:5173/";
+    private static final String APP_URL = "https://app-totembite.yamasoft.com.br/";
 
     private WebView webView;
 
@@ -37,10 +37,12 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         setContentView(webView);
         hideSystemUi();
         showLoading();
+        webView.clearCache(true);
         webView.loadUrl(APP_URL);
     }
 
@@ -84,8 +86,7 @@ public class MainActivity extends Activity {
                 "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>" +
                         "<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff8ef;" +
                         "font-family:Arial,sans-serif;color:#2b1406}main{padding:28px;text-align:center}h1{font-size:28px}" +
-                        "p{font-size:18px;color:#7a5448}</style></head><body><main><h1>Totem Bite</h1>" +
-                        "<p>Carregando cardapio...</p></main></body></html>",
+                        "</style></head><body><main><h1>NandaGO</h1></main></body></html>",
                 "text/html",
                 "UTF-8",
                 null

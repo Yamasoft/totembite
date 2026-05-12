@@ -69,7 +69,7 @@
       <h1>Atualizando o app</h1>
       <p id="status">Limpando dados antigos do app neste celular...</p>
       <button id="open" type="button" hidden>Abrir novamente</button>
-      <a id="fallback" href="/instalar.html?fresh=1" hidden>Abrir instalacao</a>
+      <a id="fallback" href="/instalar.html?fresh=1" hidden>Abrir instalação</a>
     </main>
 
     <script>
@@ -94,12 +94,12 @@
             sessionStorage.clear()
           } catch {}
 
-          status.textContent = 'Pronto. Abrindo a instalacao limpa...'
+          status.textContent = 'Pronto. Abrindo a instalação limpa...'
           window.setTimeout(() => {
             window.location.replace('/instalar.html?fresh=1')
           }, 600)
         } catch (error) {
-          status.textContent = 'Nao foi possivel limpar automaticamente. Toque abaixo para abrir novamente.'
+          status.textContent = 'Não foi possível limpar automaticamente. Toque abaixo para abrir novamente.'
           button.hidden = false
           fallback.hidden = false
         }

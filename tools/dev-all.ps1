@@ -28,20 +28,21 @@ function Start-KioskBrowser($url) {
 }
 
 try {
+  $projectRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
   Stop-PortProcess 3001
-  Stop-PortProcess 5173
+  Stop-PortProcess 5174
 
   $appUrl = $env:TOTEM_BITE_FRONTEND_URL
   if (-not $appUrl) {
-    $appUrl = 'http://localhost:5173'
+    $appUrl = 'http://localhost:5174'
   }
 
-  $serverCommand = "Set-Location 'C:\app_compras'; npm.cmd run server"
+  $serverCommand = "Set-Location '$projectRoot'; npm.cmd run server"
   $serverProcess = Start-Process powershell.exe -ArgumentList "-NoLogo", "-NoProfile", "-Command", $serverCommand -PassThru
 
   Start-Sleep -Seconds 2
 
-  Set-Location 'C:\app_compras'
+  Set-Location $projectRoot
   Start-KioskBrowser $appUrl | Out-Null
   npm.cmd run dev -- --host
 }
