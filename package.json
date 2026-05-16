@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "admin:reset": "node tools/reset-admin-password.js",
+    "start": "node server/index.js",
     "dev": "vite",
     "dev:all": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-all.ps1",
     "dev:kiosk": "powershell -ExecutionPolicy Bypass -File .\\tools\\dev-kiosk.ps1",

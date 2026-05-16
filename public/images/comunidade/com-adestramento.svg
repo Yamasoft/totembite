@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" width="400" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#0F2040"/>
+    </linearGradient>
+    <radialGradient id="atmos" cx="50%" cy="55%" r="52%">
+      <stop offset="0%" stop-color="#1D4ED8" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#1D4ED8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cao-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="trofeu" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#D97706"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="400" height="280" rx="14" fill="url(#atmos)"/>
+
+  <!-- Trilha de treinamento — pontos no chão -->
+  <g opacity="0.18" fill="#60A5FA">
+    <circle cx="72"  cy="250" r="5"/>
+    <circle cx="108" cy="255" r="4"/>
+    <circle cx="144" cy="250" r="5"/>
+    <circle cx="178" cy="254" r="4"/>
+  </g>
+
+  <!-- Cão sentado — silhueta geométrica limpa, sem face -->
+  <g transform="translate(155,162)" filter="url(#soft)">
+    <!-- Corpo sentado -->
+    <ellipse cx="0" cy="32" rx="44" ry="38" fill="url(#cao-fill)"/>
+    <!-- Cabeça -->
+    <circle cx="0" cy="-24" r="42" fill="url(#cao-fill)"/>
+    <!-- Orelhas pendentes (sem detalhe facial) -->
+    <ellipse cx="-28" cy="-38" rx="14" ry="24" fill="#1D4ED8" transform="rotate(-14,-28,-38)"/>
+    <ellipse cx="28"  cy="-38" rx="14" ry="24" fill="#1D4ED8" transform="rotate(14,28,-38)"/>
+    <!-- Patas dianteiras (sentado) -->
+    <rect x="-20" y="14" width="14" height="28" rx="7" fill="#1D4ED8"/>
+    <rect x="6"   y="14" width="14" height="28" rx="7" fill="#1D4ED8"/>
+    <!-- Patas traseiras -->
+    <ellipse cx="-30" cy="62" rx="16" ry="10" fill="#1D4ED8"/>
+    <ellipse cx="30"  cy="62" rx="16" ry="10" fill="#1D4ED8"/>
+    <!-- Nariz — único detalhe (forma, não rosto) -->
+    <ellipse cx="0" cy="-14" rx="10" ry="7" fill="#0F172A" opacity="0.7"/>
+    <!-- Brilho na cabeça -->
+    <ellipse cx="-18" cy="-38" rx="9" ry="6" fill="white" opacity="0.1" transform="rotate(-20,-18,-38)"/>
+  </g>
+
+  <!-- Troféu — canto superior direito, elegante -->
+  <g transform="translate(308,98)" filter="url(#soft)">
+    <!-- Copa -->
+    <path d="M0,-52 Q38,-52 38,-18 Q38,24 0,38 Q-38,24 -38,-18 Q-38,-52 0,-52 Z"
+          fill="url(#trofeu)"/>
+    <!-- Alças -->
+    <path d="M38,-18 Q54,-18 52,4 Q50,22 38,20" fill="none" stroke="url(#trofeu)" stroke-width="9" stroke-linecap="round"/>
+    <path d="M-38,-18 Q-54,-18 -52,4 Q-50,22 -38,20" fill="none" stroke="url(#trofeu)" stroke-width="9" stroke-linecap="round"/>
+    <!-- Haste + base -->
+    <rect x="-7"  y="38" width="14" height="20" rx="4" fill="#D97706"/>
+    <rect x="-24" y="56" width="48" height="10" rx="5" fill="#D97706"/>
+    <!-- Estrela dentro da copa -->
+    <text x="0" y="10" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif"
+          font-size="28" fill="white" opacity="0.9">★</text>
+    <!-- Brilho -->
+    <path d="M-22,-40 Q-28,-22 -24,-4" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.28"/>
+  </g>
+
+  <!-- Guia/corda — curva sutil ligando cão ao troféu -->
+  <path d="M202,118 Q255,88 282,102"
+        fill="none" stroke="#60A5FA" stroke-width="2" stroke-dasharray="6,5" opacity="0.3" stroke-linecap="round"/>
+
+  <!-- Estrelas de conquista — pequenas, lado esq. -->
+  <g opacity="0.35">
+    <g transform="translate(58,92)">
+      <line x1="0" y1="-10" x2="0"   y2="10"  stroke="#FCD34D" stroke-width="2" stroke-linecap="round"/>
+      <line x1="-10" y1="0" x2="10"  y2="0"   stroke="#FCD34D" stroke-width="2" stroke-linecap="round"/>
+      <line x1="-7"  y1="-7" x2="7"  y2="7"   stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="7"   y1="-7" x2="-7" y2="7"   stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round"/>
+      <circle r="3" fill="#FDE68A"/>
+    </g>
+    <g transform="translate(72,138)">
+      <line x1="0" y1="-7" x2="0"  y2="7"  stroke="#FCD34D" stroke-width="1.8" stroke-linecap="round"/>
+      <line x1="-7" y1="0" x2="7"  y2="0"  stroke="#FCD34D" stroke-width="1.8" stroke-linecap="round"/>
+      <circle r="2.5" fill="#FDE68A"/>
+    </g>
+  </g>
+</svg>

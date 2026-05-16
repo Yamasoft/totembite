@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ede7f6"/>
+      <stop offset="100%" stop-color="#d1c4e9"/>
+    </linearGradient>
+    <linearGradient id="ic" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#7e57c2"/>
+      <stop offset="100%" stop-color="#311b92"/>
+    </linearGradient>
+    <filter id="sh" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#311b92" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="200" height="200" fill="url(#bg)"/>
+
+  <!-- background depth circles -->
+  <circle cx="172" cy="28"  r="50" fill="#b39ddb" opacity="0.26"/>
+  <circle cx="18"  cy="178" r="38" fill="#b39ddb" opacity="0.20"/>
+
+  <!-- heart -->
+  <g filter="url(#sh)">
+    <path d="M100,136 C100,136 48,100 48,70 A36,36 0,0,1 100,56 A36,36 0,0,1 152,70 C152,100 100,136 100,136Z"
+          fill="url(#ic)"/>
+    <!-- inner shine -->
+    <ellipse cx="80" cy="76" rx="10" ry="16"
+             fill="white" opacity="0.22"
+             transform="rotate(-20 80 76)"/>
+  </g>
+
+  <!-- small paw inside heart -->
+  <g opacity="0.74">
+    <ellipse cx="100" cy="108" rx="11"  ry="9.5" fill="white"/>
+    <ellipse cx="88"  cy="96"  rx="5"   ry="6"   fill="white"/>
+    <ellipse cx="100" cy="93"  rx="5"   ry="6"   fill="white"/>
+    <ellipse cx="112" cy="96"  rx="5"   ry="6"   fill="white"/>
+  </g>
+
+  <!-- decorative sparkle dots -->
+  <circle cx="50"  cy="50"  r="5" fill="#9575cd" opacity="0.50"/>
+  <circle cx="154" cy="58"  r="7" fill="#9575cd" opacity="0.38"/>
+  <circle cx="160" cy="42"  r="4" fill="#9575cd" opacity="0.32"/>
+</svg>

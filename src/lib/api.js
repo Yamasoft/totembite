@@ -1,5 +1,15 @@
+import { normalizePhoneNational } from './phone'
+
 const adminTokenStorageKey = 'totem-bite-admin-token'
 const customerTokenStorageKey = 'totem-bite-customer-token'
+
+function withNationalPhone(payload, field) {
+  if (!payload || !(field in payload)) return payload
+  return {
+    ...payload,
+    [field]: normalizePhoneNational(payload[field]),
+  }
+}
 
 function apiBaseUrl() {
   const configuredBase = import.meta.env.VITE_API_BASE_URL?.trim()
@@ -77,8 +87,26 @@ export function clearCustomerToken() {
   window.localStorage.removeItem(customerTokenStorageKey)
 }
 
-export function fetchProducts() {
-  return request('/api/products')
+export function fetchProducts(token) {
+  return request('/api/products', token
+    ? { headers: { Authorization: `Bearer ${token}` } }
+    : {}
+  )
+}
+
+export function uploadProductImage(file, token) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      request('/api/products/upload-image', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ data: reader.result, name: file.name }),
+      }).then(resolve).catch(reject)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
 }
 
 export function fetchMeta() {
@@ -172,6 +200,7 @@ export function deletePromotion(promotionId, token) {
 
 export function createOrder(order) {
   const token = getCustomerToken()
+  const payload = withNationalPhone(order, 'phone')
   return request('/api/orders', {
     method: 'POST',
     headers: token
@@ -179,7 +208,7 @@ export function createOrder(order) {
           Authorization: `Bearer ${token}`,
         }
       : {},
-    body: JSON.stringify(order),
+    body: JSON.stringify(payload),
   })
 }
 
@@ -252,7 +281,7 @@ export function fetchCustomerOrders(token = getCustomerToken()) {
 }
 
 export function findCustomerByPhone(phone) {
-  return request(`/api/customers/lookup?phone=${encodeURIComponent(phone)}`)
+  return request(`/api/customers/lookup?phone=${encodeURIComponent(normalizePhoneNational(phone))}`)
 }
 
 export function fetchPixStatus(txid) {
@@ -279,22 +308,24 @@ export function fetchPet(id, token) {
 }
 
 export function lookupPetsByPhone(tel) {
-  return request(`/api/pets/lookup?tel=${encodeURIComponent(tel)}`)
+  return request(`/api/pets/lookup?tel=${encodeURIComponent(normalizePhoneNational(tel))}`)
 }
 
 export function createPet(payload, token) {
+  const normalizedPayload = withNationalPhone(payload, 'responsavel_tel')
   return request('/api/pets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizedPayload),
   })
 }
 
 export function updatePet(id, payload, token) {
+  const normalizedPayload = withNationalPhone(payload, 'responsavel_tel')
   return request(`/api/pets/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizedPayload),
   })
 }
 
@@ -323,10 +354,17 @@ export function fetchAppointmentSlots({ data, servico_tipo }) {
   return request(`/api/appointments/slots?${params}`)
 }
 
+/** Busca agendamentos do cliente pelo telefone (endpoint público) */
+export function fetchMyAppointments(tel) {
+  const params = new URLSearchParams({ tel })
+  return request(`/api/appointments/my?${params}`)
+}
+
 export function createAppointment(payload) {
+  const normalizedPayload = withNationalPhone(payload, 'cliente_telefone')
   return request('/api/appointments', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify(normalizedPayload),
   })
 }
 

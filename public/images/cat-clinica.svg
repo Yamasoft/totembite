@@ -1,21 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#fce4ec"/>
-      <stop offset="100%" stop-color="#f8bbd0"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f3e5f5"/>
+      <stop offset="100%" stop-color="#e1bee7"/>
     </linearGradient>
-    <linearGradient id="c" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ef5350"/>
-      <stop offset="100%" stop-color="#b71c1c"/>
+    <linearGradient id="ic" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#ab47bc"/>
+      <stop offset="100%" stop-color="#4a148c"/>
     </linearGradient>
+    <filter id="sh" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#4a148c" flood-opacity="0.22"/>
+    </filter>
   </defs>
-  <rect width="200" height="200" fill="url(#g)"/>
-  <!-- cruz médica -->
-  <rect x="84" y="50" width="32" height="100" rx="11" fill="url(#c)"/>
-  <rect x="50" y="84" width="100" height="32" rx="11" fill="url(#c)"/>
-  <!-- pata sobre a cruz -->
-  <ellipse cx="100" cy="109" rx="13" ry="11" fill="#fff" opacity="0.65"/>
-  <ellipse cx="91"  cy="97"  rx="5.5" ry="6.5" fill="#fff" opacity="0.65"/>
-  <ellipse cx="100" cy="94"  rx="5.5" ry="6.5" fill="#fff" opacity="0.65"/>
-  <ellipse cx="109" cy="97"  rx="5.5" ry="6.5" fill="#fff" opacity="0.65"/>
+
+  <rect width="200" height="200" fill="url(#bg)"/>
+
+  <!-- background depth circles -->
+  <circle cx="172" cy="28"  r="50" fill="#ce93d8" opacity="0.24"/>
+  <circle cx="18"  cy="178" r="38" fill="#ce93d8" opacity="0.18"/>
+
+  <!-- stethoscope -->
+  <g filter="url(#sh)">
+    <!-- earpiece tips -->
+    <ellipse cx="66"  cy="58" rx="11" ry="8" fill="url(#ic)" transform="rotate(-28 66 58)"/>
+    <ellipse cx="134" cy="58" rx="11" ry="8" fill="url(#ic)" transform="rotate(28 134 58)"/>
+    <!-- tubes from earpieces to junction -->
+    <path d="M66,69  C66,94 90,102 100,112"
+          fill="none" stroke="url(#ic)" stroke-width="11" stroke-linecap="round"/>
+    <path d="M134,69 C134,94 110,102 100,112"
+          fill="none" stroke="url(#ic)" stroke-width="11" stroke-linecap="round"/>
+    <!-- short stem to chest piece -->
+    <line x1="100" y1="112" x2="100" y2="128"
+          stroke="url(#ic)" stroke-width="11" stroke-linecap="round"/>
+    <!-- chest piece disc -->
+    <circle cx="100" cy="150" r="23" fill="url(#ic)"/>
+    <!-- chest piece ring highlight -->
+    <circle cx="100" cy="150" r="13" fill="white" opacity="0.22"/>
+  </g>
 </svg>

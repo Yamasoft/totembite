@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" width="400" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1C0533"/>
+      <stop offset="100%" stop-color="#2D1155"/>
+    </linearGradient>
+    <radialGradient id="atmos" cx="50%" cy="46%" r="52%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="coracao" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#F472B6"/>
+      <stop offset="100%" stop-color="#BE185D"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#BE185D" flood-opacity="0.3"/>
+    </filter>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="400" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="400" height="280" rx="14" fill="url(#atmos)"/>
+
+  <!-- Halo do coração (glow suave atrás) -->
+  <path d="M200,210 Q110,150 110,92 Q110,52 148,52 Q178,52 200,78 Q222,52 252,52 Q290,52 290,92 Q290,150 200,210 Z"
+        fill="url(#coracao)" opacity="0.15" filter="url(#glow)"/>
+
+  <!-- Coração — elemento principal -->
+  <path d="M200,200 Q115,143 115,88 Q115,52 150,52 Q178,52 200,76 Q222,52 250,52 Q285,52 285,88 Q285,143 200,200 Z"
+        fill="url(#coracao)" filter="url(#soft)"/>
+  <!-- Brilho interno -->
+  <path d="M148,70 Q143,84 148,98 Q158,64 178,60" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.28"/>
+
+  <!-- Patinha — dentro do coração, centrada -->
+  <g transform="translate(200,122)" opacity="0.92">
+    <ellipse cx="0"   cy="14" rx="18" ry="16" fill="white"/>
+    <ellipse cx="-13" cy="1"  rx="8"  ry="10" fill="white"/>
+    <ellipse cx="-4"  cy="-9" rx="8"  ry="10" fill="white"/>
+    <ellipse cx="7"   cy="-9" rx="8"  ry="10" fill="white"/>
+    <ellipse cx="16"  cy="1"  rx="8"  ry="10" fill="white"/>
+  </g>
+
+  <!-- Silhuetas dos pets — geométricas, sem face, base do card -->
+  <!-- Cão (esq.) — cabeça + orelhas, silhueta limpa -->
+  <g transform="translate(100,228)" opacity="0.35" fill="#A78BFA">
+    <circle cx="0" cy="-18" r="22"/>
+    <ellipse cx="-16" cy="-32" rx="11" ry="18" transform="rotate(-18,-16,-32)"/>
+    <ellipse cx="16"  cy="-32" rx="11" ry="18" transform="rotate(18,16,-32)"/>
+    <ellipse cx="0"   cy="8"   rx="26" ry="20"/>
+  </g>
+  <!-- Gato (dir.) — orelhas pontudas, silhueta limpa -->
+  <g transform="translate(300,228)" opacity="0.35" fill="#A78BFA">
+    <circle cx="0" cy="-18" r="22"/>
+    <polygon points="-14,-36 -22,-58 -4,-36"/>
+    <polygon points="14,-36 22,-58 4,-36"/>
+    <ellipse cx="0" cy="8" rx="26" ry="20"/>
+  </g>
+
+  <!-- Estrelas sutis de fundo -->
+  <circle cx="52"  cy="48"  r="1.8" fill="#E879F9" opacity="0.5"/>
+  <circle cx="348" cy="42"  r="2.2" fill="#E879F9" opacity="0.45"/>
+  <circle cx="365" cy="188" r="1.5" fill="#E879F9" opacity="0.4"/>
+  <circle cx="35"  cy="165" r="1.8" fill="#E879F9" opacity="0.4"/>
+</svg>

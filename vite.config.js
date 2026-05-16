@@ -7,8 +7,14 @@ export default defineConfig({
   server: {
     port: 5174,
     allowedHosts: true,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0, must-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    },
     proxy: {
       '/api': 'http://localhost:3002',
     },
+    historyApiFallback: true,
   },
 })

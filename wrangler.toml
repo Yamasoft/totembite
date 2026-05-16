@@ -8,7 +8,10 @@ compatibility_date = "2025-05-01"
 directory = "./dist"
 binding   = "ASSETS"
 
-# Variáveis de ambiente somente no Worker (não expostas ao frontend)
+# Variáveis de ambiente do Worker (não expostas ao frontend JS)
+# API_BACKEND_URL → URL do backend Node.js no Railway/Render
+# Substitua pela URL real após o deploy do servidor
 [vars]
-APP_NAME = "Farmavet"
-APP_ENV  = "demo"
+APP_NAME        = "Farmavet"
+APP_ENV         = "production"
+API_BACKEND_URL = "https://SUBSTITUA-PELA-URL-DO-RAILWAY.up.railway.app"

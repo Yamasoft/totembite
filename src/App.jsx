@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import * as QRCode from "qrcode";
 import "./styles.css";
 import "./catalogo.css";
-import { categories } from "./data/menu";
+import { categories, communityItems } from "./data/menu";
+import { campaigns } from "./data/campaigns";
+import { ProductImage } from "./components/ProductImage";
 import {
   clearAdminToken,
   cancelOrder,
@@ -14,6 +16,7 @@ import {
   fetchDashboard,
   fetchOrders,
   fetchProducts,
+  uploadProductImage,
   fetchPromotions,
   fetchKitchenOrders,
   fetchPixStatus,
@@ -27,6 +30,7 @@ import {
   fetchAppointments,
   fetchAppointmentSlots,
   createAppointment,
+  fetchMyAppointments,
   updateAppointmentStatus,
   deleteAppointment,
   fetchPets,
@@ -36,6 +40,8 @@ import {
   updatePet,
   deletePet,
 } from "./lib/api";
+import { formatPhoneNational, normalizePhoneNational } from "./lib/phone";
+import { PainelServicos } from "./painel/PainelServicos";
 
 const paymentMethods = [
   {
@@ -66,6 +72,8 @@ const paymentMethods = [
 const orderStatusSteps = ["received", "preparing", "ready", "finished"];
 const pendingPixStorageKey = "totem-bite-pending-pix";
 const activeOrdersStorageKey = "totem-bite-active-orders";
+const customerPhoneStorageKey = "farmavet-customer-phone";
+const customerAddressStorageKey = "farmavet-customer-address";
 const fulfillmentOptions = [
   {
     id: "pickup",
@@ -79,13 +87,15 @@ const fulfillmentOptions = [
   }
 ];
 const adminTabs = [
-  { id: "inicio", label: "Início", description: "Escolha uma área para trabalhar", marker: "00" },
-  { id: "vendas", label: "Vendas", description: "Pedidos, status e período", marker: "01" },
-  { id: "produtos", label: "Produtos", description: "Cadastro, preços e imagens", marker: "02" },
-  { id: "relatorios", label: "Relatórios", description: "Produto, recebimento e período", marker: "03" },
-  { id: "promocoes", label: "Promoções", description: "Vitrine comercial", marker: "04" },
-  { id: "agenda", label: "Agenda", description: "Agendamentos de banho, tosa e clínica", marker: "05" },
-  { id: "pets",   label: "Pets",   description: "Cadastro, histórico e ficha por pet",    marker: "06" },
+  { id: "inicio",     label: "Início",     description: "Visão geral e acesso rápido",                  icon: "🏠" },
+  { id: "vendas",     label: "Vendas",     description: "Pedidos, status e período",                    icon: "🛒" },
+  { id: "produtos",   label: "Produtos",   description: "Itens físicos, preços, estoque e imagens",     icon: "📦" },
+  { id: "servicos",   label: "Serviços",   description: "Serviços agendáveis — banho, clínica",         icon: "✂️" },
+  { id: "relatorios", label: "Relatórios", description: "Produto, recebimento e período",               icon: "📊" },
+  { id: "promocoes",  label: "Promoções",  description: "Vitrine comercial e destaques",                icon: "🏷" },
+  { id: "agenda",     label: "Agenda",     description: "Agendamentos de banho, tosa e clínica",        icon: "📅" },
+  { id: "pets",       label: "Pets",       description: "Cadastro, histórico e ficha por pet",          icon: "🐾" },
+  { id: "painel-ops", label: "Painel Ops", description: "Operacional — clínica e banho & tosa",         icon: "⚙️" },
 ];
 
 const APPOINTMENT_STATUS_LABEL = {
@@ -97,8 +107,9 @@ const APPOINTMENT_STATUS_LABEL = {
 };
 
 const APPOINTMENT_NEXT_STATUS = {
-  agendado: "confirmado",
-  confirmado: "em_atendimento",
+  // "confirmado" removido do fluxo visual principal (mantido no backend para compatibilidade)
+  agendado: "em_atendimento",
+  confirmado: "em_atendimento", // agendamentos antigos com status confirmado ainda avançam corretamente
   em_atendimento: "concluido",
 };
 
@@ -115,7 +126,6 @@ const SERVICE_TYPE_LABEL = {
 const SERVICE_TYPE_OPTIONS_FOR_CATEGORY = {
   banho_tosa: ["banho", "tosa", "banho_tosa", "hidratacao"],
   clinica: ["consulta_veterinaria", "vacinacao", "exame"],
-  promocoes: ["banho", "vacinacao"],
 };
 
 const PET_TIPO_LABEL = { cao: "Cão", gato: "Gato", passaro: "Pássaro", roedor: "Roedor", reptil: "Réptil", outro: "Outro" };
@@ -158,20 +168,49 @@ function guessServiceType(product) {
 }
 
 const categoryIcons = {
-  produtos: "🐾",
+  produtos:   "🐾",
   banho_tosa: "🛁",
-  clinica: "🩺",
-  promocoes: "🏷️",
+  clinica:    "🩺",
+  comunidade: "🤝",
 };
 
-const categorySvg = {
-  produtos:   "/images/cat-produtos.svg",
-  banho_tosa: "/images/cat-banho.svg",
-  clinica:    "/images/cat-clinica.svg",
-  promocoes:  "/images/cat-promocoes.svg",
-};
 
 const serviceCategories = ["banho_tosa", "clinica"];
+const communityCategories = ["comunidade"];
+
+const catalogImageByProductId = {
+  "racao-caes-adultos": "/images/produtos/racao-caes-premium.png",
+  "racao-gatos-castrados": "/images/produtos/racao-gatos-premium.png",
+  "antipulgas-carrapatos": "/images/produtos/antipulgas-veterinario.png",
+  "vermifugo": "/images/produtos/vermifugo-oral-premium.png",
+  "shampoo-neutro-pet": "/images/produtos/shampoo-pet-dermatologico.png",
+  "banho-completo-pet": "/images/servicos/banho-completo-premium.webp",
+  "pacote-banho-hidratacao": "/images/servicos/banho-hidratacao-premium.webp",
+  "tosa-higienica": "/images/servicos/tosa-higienica-premium.webp",
+  "consulta-veterinaria": "/images/servicos/consulta-veterinaria-premium.webp",
+  "vacinacao-v8-v10": "/images/servicos/vacinacao-premium.webp",
+  "exames-basicos": "/images/servicos/exames-laboratoriais-premium.webp",
+};
+
+const catalogImageByPromotionId = {
+  "promo-1": "/images/banners/campanha-banho-tosa-premium.png",
+  "promo-2": "/images/banners/campanha-vacinacao-premium.svg",
+  "promo-3": "/images/banners/campanha-racao-premium.svg",
+};
+
+function mapCatalogProductImages(products) {
+  return products.map((product) => ({
+    ...product,
+    image: catalogImageByProductId[product.id] ?? product.image,
+  }));
+}
+
+function mapCatalogPromotionImages(promotions) {
+  return promotions.map((promotion) => ({
+    ...promotion,
+    image: catalogImageByPromotionId[promotion.id] ?? promotion.image,
+  }));
+}
 
 function initialScreenFromPath() {
   if (window.location.pathname.startsWith("/admin")) return "admin";
@@ -211,7 +250,22 @@ function emptyProductDraft() {
     stock: "0",
     promo: false,
     combo: false,
-    image: "/images/produto-pet.png"
+    ativo: true,
+    image: "/images/produtos/produto-pet.png"
+  };
+}
+
+function emptyServiceDraft() {
+  return {
+    id: "",
+    name: "",
+    description: "",
+    category: "banho_tosa",
+    categoryLabel: "Banho & Tosa",
+    price: "0",
+    duracao_min: "60",
+    ativo: true,
+    image: "/images/servicos/servico-pet.png",
   };
 }
 
@@ -270,19 +324,61 @@ function writeActiveOrders(orders) {
   }
 }
 
+function readCustomerPhone() {
+  try {
+    const raw = window.localStorage.getItem(customerPhoneStorageKey) || "";
+    return formatPhoneNational(raw);
+  } catch {
+    return "";
+  }
+}
+
+function saveCustomerPhone(phone) {
+  try {
+    const digits = normalizePhoneNational(phone);
+    if (digits) {
+      window.localStorage.setItem(customerPhoneStorageKey, digits);
+    } else {
+      window.localStorage.removeItem(customerPhoneStorageKey);
+    }
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function readCustomerAddress() {
+  try {
+    const raw = window.localStorage.getItem(customerAddressStorageKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCustomerAddress(cep, address, number, note) {
+  try {
+    window.localStorage.setItem(
+      customerAddressStorageKey,
+      JSON.stringify({ cep, address, number, note })
+    );
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 export default function App() {
   const productDetailTouchStart = useRef({ x: 0, y: 0 });
   const productDetailScrollY = useRef(0);
   const [screen, setScreen] = useState(initialScreenFromPath);
   const [cart, setCart] = useState([]);
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(readCustomerPhone);
   const [fulfillmentMode, setFulfillmentMode] = useState("");
-  const [deliveryCep, setDeliveryCep] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [deliveryNumber, setDeliveryNumber] = useState("");
-  const [deliveryAddressNote, setDeliveryAddressNote] = useState("");
+  const [deliveryCep, setDeliveryCep] = useState(() => readCustomerAddress()?.cep ?? "");
+  const [deliveryAddress, setDeliveryAddress] = useState(() => readCustomerAddress()?.address ?? "");
+  const [deliveryNumber, setDeliveryNumber] = useState(() => readCustomerAddress()?.number ?? "");
+  const [deliveryAddressNote, setDeliveryAddressNote] = useState(() => readCustomerAddress()?.note ?? "");
   const [isSearchingCep, setIsSearchingCep] = useState(false);
-  const [activeCategory, setActiveCategory] = useState("todos");
+  const [activeCategory, setActiveCategory] = useState("produtos");
   const [selectedPayment, setSelectedPayment] = useState("pix");
   const [lastOrder, setLastOrder] = useState(null);
   const [trackingToken, setTrackingToken] = useState(tokenFromPath);
@@ -311,6 +407,10 @@ export default function App() {
   const [adminCredentials, setAdminCredentials] = useState({ username: "", password: "" });
   const [editingProductId, setEditingProductId] = useState("");
   const [productDraft, setProductDraft] = useState(emptyProductDraft());
+  const [adminProductSearch, setAdminProductSearch] = useState("");
+  const [adminServiceSearch, setAdminServiceSearch] = useState("");
+  const [editingServiceId, setEditingServiceId] = useState("");
+  const [serviceDraft, setServiceDraft] = useState(emptyServiceDraft());
   const [editingPromotionId, setEditingPromotionId] = useState("");
   const [promotionDraft, setPromotionDraft] = useState(emptyPromotionDraft());
   const [pixCharge, setPixCharge] = useState(null);
@@ -332,21 +432,39 @@ export default function App() {
   const [petHistoryLoading, setPetHistoryLoading] = useState(false); // loading do historico
   // Agenda admin
   const [adminAppointments, setAdminAppointments] = useState([]);
-  const [adminAgendaDate, setAdminAgendaDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [adminAgendaDate, setAdminAgendaDate] = useState(() => saoPauloDateKey());
   const [adminAgendaTipo, setAdminAgendaTipo] = useState("");
   const [adminAgendaLoading, setAdminAgendaLoading] = useState(false);
   const [adminAgendaError, setAdminAgendaError] = useState("");
   // Booking flow (client)
   const [bookingState, setBookingState] = useState(null);
+  const [pendingAppointments, setPendingAppointments] = useState(() => {
+    try {
+      const saved = localStorage.getItem("farmavet_my_appointments");
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  const [showAppointmentsSheet, setShowAppointmentsSheet] = useState(false);
+  const [myApptsLoading, setMyApptsLoading] = useState(false);
+  // Visitante: ação bloqueada até informar celular
+  const [phonePrompt, setPhonePrompt] = useState(null); // null | { run: fn }
 
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Campanha especial ativa — futuramente virá do backend
+  const today = saoPauloDateKey();
+  const activeCampaign = campaigns.find(
+    (c) => c.active && c.startDate <= today && today <= c.endDate
+  ) ?? null;
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = fulfillmentMode === "delivery" ? 0 : 0;
   const orderTotal = total + deliveryFee;
   const pixOrderTotal = lastOrder?.total ?? orderTotal;
-  const filteredProducts = activeCategory === "todos"
-    ? catalogProducts
-    : catalogProducts.filter((product) => product.category === activeCategory);
+  const filteredProducts = communityCategories.includes(activeCategory)
+    ? []
+    : activeCategory === "todos"
+      ? catalogProducts
+      : catalogProducts.filter((product) => product.category === activeCategory);
   const featuredProduct = catalogProducts.find((product) => product.combo) ?? catalogProducts[0] ?? null;
   const featuredPromotion = catalogPromotions[0] ?? null;
 
@@ -363,6 +481,10 @@ export default function App() {
       window.removeEventListener("popstate", handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    saveCustomerPhone(phone);
+  }, [phone]);
 
   useEffect(() => {
     if (!selectedProduct) return undefined;
@@ -601,12 +723,13 @@ export default function App() {
           throw new Error("Cardápio vazio no servidor.");
         }
 
-        setCatalogProducts(products);
-        setCatalogPromotions(promotions);
+        const productsWithImages = mapCatalogProductImages(products);
+        setCatalogProducts(productsWithImages);
+        setCatalogPromotions(mapCatalogPromotionImages(promotions));
         setCart((currentCart) =>
           currentCart
             .map((cartItem) => {
-              const currentProduct = products.find((product) => product.id === cartItem.id);
+              const currentProduct = productsWithImages.find((product) => product.id === cartItem.id);
               return currentProduct ? { ...cartItem, ...currentProduct } : null;
             })
             .filter(Boolean)
@@ -645,8 +768,8 @@ export default function App() {
           throw new Error("Cardápio vazio no servidor.");
         }
 
-        setCatalogProducts(products);
-        setCatalogPromotions(promotions);
+        setCatalogProducts(mapCatalogProductImages(products));
+        setCatalogPromotions(mapCatalogPromotionImages(promotions));
         setCatalogStatus("ready");
       } catch (error) {
         if (!active) {
@@ -676,13 +799,13 @@ export default function App() {
       const [dashboard, orders, products, promotions] = await Promise.all([
         fetchDashboard(token),
         fetchOrders(token),
-        fetchProducts(),
+        fetchProducts(token),
         fetchPromotions()
       ]);
       setAdminDashboard(dashboard);
       setAdminOrders(orders);
-      setAdminProducts(products);
-      setAdminPromotions(promotions);
+      setAdminProducts(products.map((p) => ({ ...p, image: catalogImageByProductId[p.id] ?? p.image })));
+      setAdminPromotions(mapCatalogPromotionImages(promotions));
     } catch (error) {
       setAdminError(error.message);
     } finally {
@@ -742,11 +865,15 @@ export default function App() {
 
   async function savePet(event) {
     event.preventDefault();
+    const payload = {
+      ...petDraft,
+      responsavel_tel: phoneDigits(petDraft.responsavel_tel),
+    };
     try {
       if (editingPetId) {
-        await updatePet(editingPetId, petDraft, adminToken);
+        await updatePet(editingPetId, payload, adminToken);
       } else {
-        await createPet(petDraft, adminToken);
+        await createPet(payload, adminToken);
       }
       setEditingPetId("");
       setPetDraft(emptyPetDraft());
@@ -761,7 +888,7 @@ export default function App() {
     setPetDraft({
       nome: pet.nome, tipo: pet.tipo, raca: pet.raca, porte: pet.porte,
       sexo: pet.sexo, data_nascimento: pet.data_nascimento, cor: pet.cor,
-      responsavel_nome: pet.responsavel_nome, responsavel_tel: pet.responsavel_tel,
+      responsavel_nome: pet.responsavel_nome, responsavel_tel: formatPhone(pet.responsavel_tel),
       responsavel_email: pet.responsavel_email, observacoes: pet.observacoes,
     });
     setSelectedPet(null);
@@ -813,10 +940,10 @@ export default function App() {
     const servicoTipo = guessServiceType(product);
     updateBooking({ submitting: true, error: "" });
     try {
-      await createAppointment({
+      const created = await createAppointment({
         pet_id: form.pet_id || undefined,
         cliente_nome: form.cliente_nome,
-        cliente_telefone: form.cliente_telefone,
+        cliente_telefone: phoneDigits(form.cliente_telefone),
         pet_nome: form.pet_nome,
         pet_tipo: form.pet_tipo,
         pet_porte: form.pet_porte,
@@ -827,10 +954,60 @@ export default function App() {
         hora_inicio: selectedSlot.hora_inicio,
         observacoes: form.observacoes,
       });
+      // Monta entrada com dados reais retornados pelo servidor
+      const newAppt = {
+        id: created?.id ?? `local-${Date.now()}`,
+        servico_nome: created?.servico_nome ?? product.name,
+        servico_tipo: created?.servico_tipo ?? servicoTipo,
+        profissional: created?.profissional ?? selectedSlot.profissional,
+        data: created?.data ?? bookingState.date,
+        hora_inicio: created?.hora_inicio ?? selectedSlot.hora_inicio,
+        hora_fim: created?.hora_fim ?? selectedSlot.hora_fim,
+        status: created?.status ?? "agendado",
+        pet_nome: created?.pet_nome ?? form.pet_nome,
+        pet_tipo: created?.pet_tipo ?? form.pet_tipo,
+        cliente_telefone: phoneDigits(form.cliente_telefone),
+        observacoes: created?.observacoes ?? form.observacoes ?? "",
+      };
+      setPendingAppointments((prev) => {
+        const updated = [newAppt, ...prev.filter((a) => a.id !== newAppt.id)];
+        try { localStorage.setItem("farmavet_my_appointments", JSON.stringify(updated)); } catch {}
+        return updated;
+      });
       updateBooking({ submitting: false, done: true });
     } catch (err) {
       updateBooking({ submitting: false, error: err.message });
     }
+  }
+
+  /** Atualiza status real dos agendamentos do cliente via API */
+  async function refreshMyAppointments(tel) {
+    if (!tel || phoneDigits(tel).length !== 11) return;
+    setMyApptsLoading(true);
+    try {
+      const rows = await fetchMyAppointments(phoneDigits(tel));
+      if (!Array.isArray(rows)) return;
+      setPendingAppointments((prev) => {
+        // Mescla: atualiza status dos que vieram do servidor, mantém locais que ainda não chegaram
+        const serverById = Object.fromEntries(rows.map((r) => [r.id, r]));
+        const merged = prev.map((a) => serverById[a.id] ? { ...a, status: serverById[a.id].status } : a);
+        // Adiciona agendamentos do servidor que não estão na lista local (ex: outro dispositivo)
+        const localIds = new Set(prev.map((a) => a.id));
+        rows.forEach((r) => { if (!localIds.has(r.id)) merged.push(r); });
+        merged.sort((a, b) => (a.data + a.hora_inicio).localeCompare(b.data + b.hora_inicio));
+        try { localStorage.setItem("farmavet_my_appointments", JSON.stringify(merged)); } catch {}
+        return merged;
+      });
+    } catch { /* silencioso — a lista local continua disponível */ }
+    finally { setMyApptsLoading(false); }
+  }
+
+  function requirePhone(pendingFn) {
+    if (phoneDigits(phone).length === 11) {
+      pendingFn(phone);
+      return;
+    }
+    setPhonePrompt({ run: pendingFn });
   }
 
   useEffect(() => {
@@ -987,8 +1164,10 @@ export default function App() {
     setAdminError("");
     setAdminCredentials({ username: "", password: "" });
     setEditingProductId("");
+    setEditingServiceId("");
     setEditingPromotionId("");
     setProductDraft(emptyProductDraft());
+    setServiceDraft(emptyServiceDraft());
     setPromotionDraft(emptyPromotionDraft());
     navigateTo("login", "/");
   }
@@ -1005,6 +1184,7 @@ export default function App() {
       stock: String(product.stock),
       promo: Boolean(product.promo),
       combo: Boolean(product.combo),
+      ativo: product.ativo !== false,
       image: product.image
     });
     setAdminTab("produtos");
@@ -1051,7 +1231,7 @@ export default function App() {
         if (!products.length) {
           throw new Error("Cardápio vazio no servidor.");
         }
-        setCatalogProducts(products);
+        setCatalogProducts(mapCatalogProductImages(products));
         setCatalogStatus("ready");
         setCatalogError("");
       }
@@ -1085,7 +1265,7 @@ export default function App() {
       await loadAdminData(adminToken);
       if (screen === "catalogo") {
         const promotions = await fetchPromotions();
-        setCatalogPromotions(promotions);
+        setCatalogPromotions(mapCatalogPromotionImages(promotions));
       }
     } catch (error) {
       setAdminError(error.message);
@@ -1104,6 +1284,76 @@ export default function App() {
       if (editingProductId === productId) {
         setEditingProductId("");
         setProductDraft(emptyProductDraft());
+      }
+      await loadAdminData(adminToken);
+    } catch (error) {
+      setAdminError(error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  }
+
+  function startEditingService(service) {
+    setEditingServiceId(service.id);
+    setServiceDraft({
+      id: service.id,
+      name: service.name,
+      description: service.description,
+      category: service.category,
+      categoryLabel: service.categoryLabel,
+      price: String(service.price),
+      duracao_min: String(service.duracao_min ?? "60"),
+      ativo: service.ativo !== false,
+      image: service.image,
+    });
+    setAdminTab("servicos");
+  }
+
+  async function saveService(event) {
+    event.preventDefault();
+    if (!adminToken) return;
+
+    const payload = {
+      ...serviceDraft,
+      id: serviceDraft.id || slugify(serviceDraft.name),
+      categoryLabel: serviceDraft.categoryLabel || categoryLabelFor(serviceDraft.category),
+      price: Number(serviceDraft.price),
+      stock: 0,
+      promo: false,
+      combo: false,
+      tipo: "servico",
+      duracao_min: Number(serviceDraft.duracao_min) || 60,
+    };
+
+    setAdminLoading(true);
+    setAdminError("");
+
+    try {
+      if (editingServiceId) {
+        await updateProduct(editingServiceId, payload, adminToken);
+      } else {
+        await createProduct(payload, adminToken);
+      }
+      setEditingServiceId("");
+      setServiceDraft(emptyServiceDraft());
+      await loadAdminData(adminToken);
+    } catch (error) {
+      setAdminError(error.message);
+    } finally {
+      setAdminLoading(false);
+    }
+  }
+
+  async function removeAdminService(serviceId) {
+    if (!adminToken) return;
+    setAdminLoading(true);
+    setAdminError("");
+
+    try {
+      await deleteProduct(serviceId, adminToken);
+      if (editingServiceId === serviceId) {
+        setEditingServiceId("");
+        setServiceDraft(emptyServiceDraft());
       }
       await loadAdminData(adminToken);
     } catch (error) {
@@ -1165,6 +1415,16 @@ export default function App() {
     }).formatToParts(value);
     const mapped = Object.fromEntries(parts.map((part) => [part.type, part.value]));
     return `${mapped.year}-${mapped.month}-${mapped.day}`;
+  }
+
+  /** Retorna HH:MM no fuso de Brasília (America/Sao_Paulo) */
+  function saoPauloTimeHHMM(value = new Date()) {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(value); // ex.: "14:35"
   }
 
   function addToCart(product) {
@@ -1255,11 +1515,10 @@ export default function App() {
   function animateAndAdd(event, product) {
     if (product.stock === 0) return;
 
-    event.currentTarget.classList.add("clicked");
-
-    setTimeout(() => {
-      event.currentTarget.classList.remove("clicked");
-    }, 180);
+    if (event?.currentTarget) {
+      event.currentTarget.classList.add("clicked");
+      setTimeout(() => event.currentTarget.classList.remove("clicked"), 180);
+    }
 
     addToCart(product);
   }
@@ -1440,16 +1699,45 @@ export default function App() {
     return "";
   }
 
+  function phoneDigits(value) {
+    return normalizePhoneNational(value);
+  }
+
   function formatPhone(value) {
-    const digits = value.replace(/\D/g, "").slice(0, 11);
+    return formatPhoneNational(value);
+  }
 
-    if (digits.length <= 2) return digits ? `(${digits}` : "";
-    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    if (digits.length <= 10) {
-      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  function applyPhoneInput(value) {
+    return formatPhone(phoneDigits(value));
+  }
+
+  function handleBookingPhoneChange(event) {
+    const formatted = applyPhoneInput(event.currentTarget.value);
+    updateBooking({
+      form: { ...bookingState.form, cliente_telefone: formatted },
+      foundPets: null,
+      error: "",
+    });
+  }
+
+  function handleBookingPhoneBeforeInput(event) {
+    if (!event.data || !/\d/.test(event.data)) return;
+    const input = event.currentTarget;
+    const selected = Math.max(0, input.selectionEnd - input.selectionStart);
+    if (selected === 0 && phoneDigits(input.value).length >= 11) {
+      event.preventDefault();
     }
+  }
 
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  function handleBookingPhonePaste(event) {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData("text");
+    const formatted = applyPhoneInput(pasted);
+    updateBooking({
+      form: { ...bookingState.form, cliente_telefone: formatted },
+      foundPets: null,
+      error: "",
+    });
   }
 
   function formatCep(value) {
@@ -1520,7 +1808,7 @@ export default function App() {
         ...payment,
         mode: fulfillmentMode,
         customerName: "Cliente app",
-        phone: phone || "Não informado",
+        phone: phoneDigits(phone) || "Não informado",
         address: fulfillmentMode === "delivery" ? finalDeliveryAddress : "Retirada no balcão",
         subtotal: total,
         deliveryFee,
@@ -1537,6 +1825,10 @@ export default function App() {
       const order = {
         ...payload.order,
       };
+
+      if (fulfillmentMode === "delivery" && finalDeliveryAddress) {
+        saveCustomerAddress(deliveryCep, deliveryAddress, deliveryNumber, deliveryAddressNote);
+      }
 
       setLastOrder(order);
       setTrackingToken(token);
@@ -1626,30 +1918,23 @@ export default function App() {
         <main className="app-shell">
           <header className="hero">
             <div className="hero-top">
-              <div className="hero-title-row">
-                <button className="catalog-back-btn" onClick={() => replaceTo("login", "/")} aria-label="Voltar">
-                  {"<"}
-                </button>
+              <button className="catalog-back-btn" onClick={() => replaceTo("login", "/")} aria-label="Voltar">
+                {"<"}
+              </button>
 
-                <div>
-                  <span className="eyebrow">Farmavet</span>
-                  <h1 className="brand-name">
-                    <span className="brand-name-blue">Farma</span><span className="brand-name-green">vet</span>
-                  </h1>
-                  <p>PetShop e Clínica Veterinária</p>
+              <div className="catalog-hero-brand">
+                <div className={`catalog-hero-badge ${showFarmavetLogo ? "" : "fallback"}`}>
+                  {showFarmavetLogo ? (
+                    <img
+                      src="/logoFarmavet.jpeg"
+                      alt="Farmavet"
+                      onError={() => setShowFarmavetLogo(false)}
+                    />
+                  ) : (
+                    <span>FV</span>
+                  )}
                 </div>
-              </div>
-
-              <div className={`brand-badge ${showFarmavetLogo ? "" : "fallback"}`}>
-                {showFarmavetLogo ? (
-                  <img
-                    src="/logoFarmavet.jpeg"
-                    alt="Farmavet"
-                    onError={() => setShowFarmavetLogo(false)}
-                  />
-                ) : (
-                  "FV"
-                )}
+                <p className="catalog-hero-sub">PetShop e Clínica Veterinária</p>
               </div>
             </div>
           </header>
@@ -1669,34 +1954,7 @@ export default function App() {
             </section>
           ) : (
             <>
-              {featuredProduct && featuredPromotion && !serviceCategories.includes(activeCategory) && (
-                <section className="promo-card">
-                  <img className="promo-bg" src={featuredProduct.image} alt={featuredProduct.name} />
-
-                  <div className="promo-overlay">
-                    <span>{featuredPromotion.tag}</span>
-                    <strong>{featuredPromotion.title}</strong>
-                    <p>{featuredPromotion.description}</p>
-
-                    <div className="promo-actions">
-                      <div className="promo-price">{featuredPromotion.highlight}</div>
-
-                      <button onClick={(event) => animateAndAdd(event, featuredProduct)}>
-                        Adicionar
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              )}
-
               <nav className="categories">
-                <button
-                  className={activeCategory === "todos" ? "active" : ""}
-                  onClick={() => setActiveCategory("todos")}
-                >
-                  Todos
-                </button>
-
                 {categories.map((category) => (
                   <button
                     key={category.id}
@@ -1710,11 +1968,26 @@ export default function App() {
               </nav>
 
               <section className="products">
-                {filteredProducts.map((product) => {
+                {communityCategories.includes(activeCategory) ? (
+                  communityItems.map((item) => (
+                    <article className="community-card" key={item.id}>
+                      <div className="community-card-tag">{item.tag}</div>
+                      <div className="community-card-body">
+                        <h3>{item.name}</h3>
+                        <p>{item.description}</p>
+                      </div>
+                      <button
+                        className="community-card-btn"
+                        onClick={() => alert(`${item.name}\n\nEm breve mais informações aqui.`)}
+                      >
+                        {item.action}
+                      </button>
+                    </article>
+                  ))
+                ) : filteredProducts.map((product) => {
                   const unavailable = product.stock === 0;
                   const cartItem = cart.find((item) => item.id === product.id);
                   const isService = serviceCategories.includes(product.category);
-                  const fallbackSrc = categorySvg[product.category] ?? "/images/cat-produtos.svg";
 
                   return (
                     <article
@@ -1734,11 +2007,11 @@ export default function App() {
                         {product.promo && !isService && <span className="product-promo-badge">Promo</span>}
                         {isService && <span className="product-service-badge">Serviço</span>}
                         {unavailable && <span className="product-stock-badge">Esgotado</span>}
-                        <img
+                        <ProductImage
                           className="product-img"
                           src={product.image}
                           alt={product.name}
-                          onError={(e) => { e.target.src = fallbackSrc; e.target.onerror = null; }}
+                          category={product.category}
                         />
                       </div>
 
@@ -1751,29 +2024,29 @@ export default function App() {
                               className="schedule-btn"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setBookingState({
+                                requirePhone((currentPhone) => setBookingState({
                                   open: true,
                                   product,
                                   step: "form",
                                   form: {
                                     pet_id: "",
                                     cliente_nome: "",
-                                    cliente_telefone: phone,
+                                    cliente_telefone: currentPhone,
                                     pet_nome: "",
                                     pet_tipo: "cao",
                                     pet_porte: "medio",
                                     observacoes: "",
                                   },
-                                  foundPets: null,     // null = não buscou ainda
+                                  foundPets: null,
                                   petsSearching: false,
-                                  date: new Date().toISOString().slice(0, 10),
+                                  date: saoPauloDateKey(),
                                   slots: [],
                                   slotsLoading: false,
                                   selectedSlot: null,
                                   submitting: false,
                                   done: false,
                                   error: "",
-                                });
+                                }));
                               }}
                             >
                               📅 Agendar
@@ -1798,7 +2071,7 @@ export default function App() {
                           className="add-btn"
                           onClick={(event) => {
                             event.stopPropagation();
-                            animateAndAdd(event, product);
+                            requirePhone(() => animateAndAdd(null, product));
                           }}
                           disabled={unavailable}
                           aria-label={`Adicionar ${product.name}`}
@@ -1814,29 +2087,103 @@ export default function App() {
           )}
         </main>
 
-        {!catalogUnavailable && (
-          <footer className={`cart-bar${totalItems > 0 ? " cart-bar--active" : ""}`}>
-            <div className="cart-bar-info">
-              <div className="cart-bar-icon" aria-hidden="true">
-                <span className="cart-bar-count">{totalItems > 0 ? totalItems : "🛒"}</span>
+        {!catalogUnavailable && !communityCategories.includes(activeCategory) && (cart.length > 0 || pendingAppointments.length > 0) && (() => {
+          const hasCart = cart.length > 0;
+          const hasAppt = pendingAppointments.length > 0;
+          const bothActive = hasCart && hasAppt;
+          return (
+            <footer className="cart-bar cart-bar--active">
+              <div className="cart-bar-info">
+                <div className="cart-bar-icon" aria-hidden="true">
+                  <span className="cart-bar-count">
+                    {bothActive ? "🛒📅" : hasCart ? totalItems : "📅"}
+                  </span>
+                </div>
+                <div className="cart-bar-text">
+                  <span>
+                    {bothActive
+                      ? `${totalItems} ${totalItems === 1 ? "produto" : "produtos"} · ${pendingAppointments.length} ${pendingAppointments.length === 1 ? "agendamento" : "agendamentos"}`
+                      : hasCart
+                        ? `${totalItems} ${totalItems === 1 ? "item selecionado" : "itens selecionados"}`
+                        : `${pendingAppointments.length} ${pendingAppointments.length === 1 ? "agendamento" : "agendamentos"}`}
+                  </span>
+                  {hasCart && <strong>{money(total)}</strong>}
+                </div>
               </div>
-              <div className="cart-bar-text">
-                <span>
-                  {totalItems > 0
-                    ? `${totalItems} ${totalItems === 1 ? "item selecionado" : "itens selecionados"}`
-                    : "Nenhum item ainda"}
-                </span>
-                <strong>{money(total)}</strong>
+              {bothActive ? (
+                <div className="cart-bar-dual-cta">
+                  <button className="cart-bar-cta cart-bar-cta--secondary" onClick={() => { setShowAppointmentsSheet(true); refreshMyAppointments(phone); }}>
+                    Agendamentos
+                  </button>
+                  <button className="cart-bar-cta" onClick={() => navigateTo("cart")}>
+                    Pedido
+                  </button>
+                </div>
+              ) : hasCart ? (
+                <button className="cart-bar-cta" onClick={() => navigateTo("cart")}>
+                  Ver pedido
+                </button>
+              ) : (
+                <button className="cart-bar-cta" onClick={() => { setShowAppointmentsSheet(true); refreshMyAppointments(phone); }}>
+                  Ver agendamentos
+                </button>
+              )}
+            </footer>
+          );
+        })()}
+
+        {showAppointmentsSheet && (
+          <section className="booking-modal" role="dialog" aria-modal="true" aria-label="Agendamentos">
+            <div className="booking-modal-overlay" onClick={() => setShowAppointmentsSheet(false)} />
+            <div className="booking-sheet">
+              <div className="booking-header">
+                <div>
+                  <span className="eyebrow">Meus agendamentos</span>
+                  <h2>Na fila da Farmavet</h2>
+                </div>
+                <button className="booking-close-btn" onClick={() => setShowAppointmentsSheet(false)} aria-label="Fechar">✕</button>
               </div>
+              {myApptsLoading && (
+                <p className="my-appts-loading">Atualizando status…</p>
+              )}
+              {pendingAppointments.length === 0 ? (
+                <p style={{ padding: "1.5rem", color: "var(--text-secondary, #666)" }}>Nenhum agendamento ainda.</p>
+              ) : (
+                <ul className="appointments-list">
+                  {pendingAppointments.map((appt) => {
+                    const statusLabel = APPOINTMENT_STATUS_LABEL[appt.status] ?? appt.status ?? "Agendado";
+                    const statusCls = `my-appt-status my-appt-status--${appt.status ?? "agendado"}`;
+                    const isConcluido = appt.status === "concluido";
+                    const isCancelado = appt.status === "cancelado";
+                    return (
+                      <li key={appt.id} className={`appointments-list-item${isConcluido ? " appointments-list-item--done" : ""}${isCancelado ? " appointments-list-item--cancelled" : ""}`}>
+                        <div className="appointments-list-service">{appt.servico_nome ?? appt.serviceName}</div>
+                        <div className="appointments-list-detail">
+                          <span>{appt.pet_nome ?? appt.petNome}</span>
+                          <span>{appt.data} às {appt.hora_inicio ?? appt.horaInicio}</span>
+                          <span>com {appt.profissional}</span>
+                        </div>
+                        <div className="my-appt-footer">
+                          <span className={statusCls}>{statusLabel}</span>
+                          {(isConcluido || isCancelado) && (
+                            <button
+                              className="appointments-list-remove"
+                              onClick={() => setPendingAppointments((prev) => {
+                                const updated = prev.filter((a) => a.id !== appt.id);
+                                try { localStorage.setItem("farmavet_my_appointments", JSON.stringify(updated)); } catch {}
+                                return updated;
+                              })}
+                              aria-label="Remover da lista"
+                            >✕</button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
-            <button
-              className="cart-bar-cta"
-              onClick={() => navigateTo("cart")}
-              disabled={cart.length === 0}
-            >
-              Ver pedido
-            </button>
-          </footer>
+          </section>
         )}
 
         {bookingState?.open && (
@@ -1874,20 +2221,35 @@ export default function App() {
                             <input
                               type="tel"
                               value={bookingState.form.cliente_telefone}
-                              onChange={(e) => updateBooking({ form: { ...bookingState.form, cliente_telefone: e.target.value }, foundPets: null })}
+                              onBeforeInput={handleBookingPhoneBeforeInput}
+                              onPaste={handleBookingPhonePaste}
+                              onChange={handleBookingPhoneChange}
                               placeholder="(11) 99999-9999"
                               inputMode="tel"
+                              autoComplete="tel"
+                              maxLength={15}
                             />
                             <button
                               type="button"
                               className="booking-lookup-btn"
-                              disabled={bookingState.petsSearching || bookingState.form.cliente_telefone.replace(/\D/g,"").length < 8}
+                              disabled={bookingState.petsSearching || phoneDigits(bookingState.form.cliente_telefone).length !== 11}
                               onClick={async () => {
+                                const telDigitado = bookingState.form.cliente_telefone;
+                                const telNormalizado = phoneDigits(telDigitado);
+                                if (telNormalizado.length !== 11) {
+                                  updateBooking({ error: "Informe um celular com 11 dígitos: DDD + número.", foundPets: null });
+                                  return;
+                                }
+                                console.log("[BUSCAR PETS] tel digitado no modal:", JSON.stringify(telDigitado));
+                                console.log("[BUSCAR PETS] tel normalizado (phoneDigits):", JSON.stringify(telNormalizado), "| length:", telNormalizado.length);
+                                console.log("[BUSCAR PETS] endpoint chamado: GET /api/pets/lookup?tel=" + encodeURIComponent(telNormalizado));
                                 updateBooking({ petsSearching: true, foundPets: null, error: "" });
                                 try {
-                                  const pets = await lookupPetsByPhone(bookingState.form.cliente_telefone);
+                                  const pets = await lookupPetsByPhone(telNormalizado);
+                                  console.log("[BUSCAR PETS] resposta do backend:", pets?.length ?? "erro", "pet(s)");
                                   updateBooking({ petsSearching: false, foundPets: pets || [] });
-                                } catch {
+                                } catch (err) {
+                                  console.log("[BUSCAR PETS] ERRO na chamada:", err?.message);
                                   updateBooking({ petsSearching: false, foundPets: [] });
                                 }
                               }}
@@ -1896,6 +2258,10 @@ export default function App() {
                             </button>
                           </div>
                         </label>
+
+                        {bookingState.form.cliente_telefone && phoneDigits(bookingState.form.cliente_telefone).length !== 11 && (
+                          <p className="booking-error">Informe um celular com 11 dígitos: DDD + número.</p>
+                        )}
 
                         {/* Grid de pets encontrados */}
                         {Array.isArray(bookingState.foundPets) && (
@@ -1917,6 +2283,7 @@ export default function App() {
                                           pet_tipo: p.tipo,
                                           pet_porte: p.porte || "medio",
                                           cliente_nome: p.responsavel_nome,
+                                          cliente_telefone: formatPhone(p.responsavel_tel),
                                           observacoes: p.observacoes || "",
                                         },
                                       })}
@@ -2019,7 +2386,7 @@ export default function App() {
                         <input
                           type="date"
                           value={bookingState.date}
-                          min={new Date().toISOString().slice(0, 10)}
+                          min={saoPauloDateKey()}
                           onChange={(e) => {
                             const servicoTipo = guessServiceType(bookingState.product);
                             updateBooking({ date: e.target.value, selectedSlot: null });
@@ -2101,6 +2468,49 @@ export default function App() {
           </section>
         )}
 
+        {phonePrompt && (
+          <section className="booking-modal" role="dialog" aria-modal="true" aria-label="Identificação necessária">
+            <div className="booking-modal-overlay" onClick={() => setPhonePrompt(null)} />
+            <div className="booking-sheet phone-prompt-sheet">
+              <div className="booking-header">
+                <h3>Informe seu celular</h3>
+                <button className="booking-close" onClick={() => setPhonePrompt(null)}>✕</button>
+              </div>
+              <p className="phone-prompt-hint">
+                Precisamos do seu número para confirmar o agendamento ou pedido.
+              </p>
+              <input
+                className="phone-prompt-input"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="(11) 99999-9999"
+                value={phone}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
+                autoFocus
+              />
+              <button
+                className="booking-next-btn phone-prompt-confirm"
+                disabled={phoneDigits(phone).length !== 11}
+                onClick={() => {
+                  const fn = phonePrompt.run;
+                  const currentPhone = phone;
+                  setPhonePrompt(null);
+                  fn(currentPhone);
+                }}
+              >
+                Continuar
+              </button>
+              <button
+                className="phone-prompt-skip"
+                onClick={() => setPhonePrompt(null)}
+              >
+                Só quero navegar por enquanto
+              </button>
+            </div>
+          </section>
+        )}
+
         {selectedProduct && (
           <section
             className="product-detail-modal"
@@ -2118,13 +2528,10 @@ export default function App() {
               </button>
 
               <div className="product-detail-media" data-cat={selectedProduct.category}>
-                <img
+                <ProductImage
                   src={selectedProduct.image}
                   alt={selectedProduct.name}
-                  onError={(e) => {
-                    e.target.src = categorySvg[selectedProduct.category] ?? "/images/cat-produtos.svg";
-                    e.target.onerror = null;
-                  }}
+                  category={selectedProduct.category}
                 />
                 {serviceCategories.includes(selectedProduct.category) && (
                   <span className="detail-service-chip">
@@ -2146,14 +2553,14 @@ export default function App() {
                     className="product-detail-primary"
                     onClick={() => {
                       closeSelectedProduct();
-                      setBookingState({
+                      requirePhone((currentPhone) => setBookingState({
                         open: true,
                         product: selectedProduct,
                         step: "form",
                         form: {
                           pet_id: "",
                           cliente_nome: "",
-                          cliente_telefone: "",
+                          cliente_telefone: currentPhone,
                           pet_nome: "",
                           pet_tipo: "cao",
                           pet_porte: "medio",
@@ -2161,14 +2568,14 @@ export default function App() {
                         },
                         foundPets: null,
                         petsSearching: false,
-                        date: new Date().toISOString().slice(0, 10),
+                        date: saoPauloDateKey(),
                         slots: [],
                         slotsLoading: false,
                         selectedSlot: null,
                         submitting: false,
                         done: false,
                         error: "",
-                      });
+                      }));
                     }}
                   >
                     📅 Agendar
@@ -2235,31 +2642,42 @@ export default function App() {
             <section className="cart-list">
               {cart.map((item) => (
                 <article className="cart-item" key={item.id}>
-                  <img src={item.image} alt={item.name} />
-
-                  <div className="cart-item-info">
-                    <h3>{item.name}</h3>
-                    <span>{money(item.price)}</span>
-
-                    <div className="qty-control">
-                      <button onClick={() => decreaseFromCart(item.id)}>-</button>
-                      <strong>{item.quantity}</strong>
-                      <button onClick={() => addToCart(item)}>+</button>
-                    </div>
+                  <div className="cart-item-media">
+                    <ProductImage
+                      className="cart-item-image"
+                      src={item.image}
+                      alt={item.name}
+                      category={item.category}
+                    />
                   </div>
 
-                  <button
-                    className="remove-btn"
-                    onClick={() => removeFromCart(item.id)}
-                  >
-                    Remover
-                  </button>
+                  <div className="cart-item-info">
+                    <div className="cart-item-copy">
+                      <h3>{item.name}</h3>
+                      <span>{money(item.price)}</span>
+                    </div>
+
+                    <div className="cart-item-actions">
+                      <div className="qty-control" aria-label={`Quantidade de ${item.name}`}>
+                        <button onClick={() => decreaseFromCart(item.id)} aria-label={`Diminuir ${item.name}`}>-</button>
+                        <strong>{item.quantity}</strong>
+                        <button onClick={() => addToCart(item)} aria-label={`Adicionar mais ${item.name}`}>+</button>
+                      </div>
+
+                      <button
+                        className="remove-btn"
+                        onClick={() => removeFromCart(item.id)}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  </div>
                 </article>
               ))}
             </section>
 
             <section className="cart-summary">
-              <div>
+              <div className="cart-total-row">
                 <span>Total</span>
                 <strong>{money(total)}</strong>
               </div>
@@ -2767,6 +3185,7 @@ export default function App() {
     const adminModuleCards = [
       {
         id: "vendas",
+        icon: "🛒",
         label: "Vendas",
         description: "Acompanhar pedidos, status, valores e período.",
         metric: openAdminOrders.length,
@@ -2774,13 +3193,23 @@ export default function App() {
       },
       {
         id: "produtos",
+        icon: "📦",
         label: "Produtos",
         description: "Cadastrar itens, preços, estoque e imagens.",
         metric: adminDashboard?.totalProducts ?? adminProducts.length,
-        metricLabel: "ativos"
+        metricLabel: "cadastrados"
+      },
+      {
+        id: "servicos",
+        icon: "✂️",
+        label: "Serviços",
+        description: "Gerenciar serviços agendáveis e preços.",
+        metric: adminProducts.filter((p) => p.tipo === "servico").length,
+        metricLabel: "serviços ativos"
       },
       {
         id: "relatorios",
+        icon: "📊",
         label: "Relatórios",
         description: "Consultar produto, recebimento ou intervalo.",
         metric: money(adminRevenue),
@@ -2788,6 +3217,7 @@ export default function App() {
       },
       {
         id: "promocoes",
+        icon: "🏷",
         label: "Promoções",
         description: "Organizar chamadas e destaques comerciais.",
         metric: adminDashboard?.totalPromotions ?? adminPromotions.length,
@@ -2795,6 +3225,7 @@ export default function App() {
       },
       {
         id: "agenda",
+        icon: "📅",
         label: "Agenda",
         description: "Visualizar e gerenciar agendamentos de serviços.",
         metric: adminAppointments.filter((a) => a.status === "agendado" || a.status === "confirmado").length,
@@ -2802,11 +3233,20 @@ export default function App() {
       },
       {
         id: "pets",
+        icon: "🐾",
         label: "Pets",
         description: "Cadastro, ficha e histórico de cada pet.",
         metric: adminPets.filter((p) => p.ativo).length,
         metricLabel: "cadastrados"
-      }
+      },
+      {
+        id: "painel-ops",
+        icon: "⚙️",
+        label: "Painel Ops",
+        description: "Operacional em tempo real — clínica e banho.",
+        metric: adminAppointments.filter((a) => a.status === "em_atendimento").length,
+        metricLabel: "em atendimento"
+      },
     ];
     const statusBuckets = [
       {
@@ -2911,9 +3351,17 @@ export default function App() {
             <h1>Painel de controle</h1>
           </div>
           {adminToken && (
-            <button className="admin-exit-btn" onClick={handleAdminLogout}>
-              Sair
-            </button>
+            <div className="admin-header-right">
+              {adminError && adminTab !== "painel-ops" && (
+                <div className="admin-header-error" role="alert">
+                  <span>⚠</span>
+                  <span>{adminError}</span>
+                </div>
+              )}
+              <button className="admin-exit-btn" onClick={handleAdminLogout}>
+                Sair
+              </button>
+            </div>
           )}
         </header>
 
@@ -2950,6 +3398,12 @@ export default function App() {
           </section>
         ) : (
           <>
+            {adminTab === "painel-ops" && (
+              <div style={{ position: "fixed", inset: 0, zIndex: 200, overflow: "hidden" }}>
+                <PainelServicos onSair={() => setAdminTab("inicio")} />
+              </div>
+            )}
+
             <section className="admin-hero-panel">
               <div>
                 <span className="eyebrow">Administração</span>
@@ -3004,7 +3458,7 @@ export default function App() {
                         if (tab.id === "pets")   loadPets();
                       }}
                     >
-                      <span>{tab.marker}</span>
+                      <span>{tab.icon}</span>
                       <strong>{tab.label}</strong>
                       <small>{tab.description}</small>
                     </button>
@@ -3014,7 +3468,7 @@ export default function App() {
               )}
 
               <section className={`admin-content-stack ${adminTab === "relatorios" ? "admin-content-reports" : ""} ${adminTab === "agenda" || adminTab === "pets" ? "admin-content-agenda" : ""}`}>
-                {adminTab !== "inicio" && adminTab !== "relatorios" && adminTab !== "agenda" && adminTab !== "pets" && (
+                {adminTab !== "inicio" && adminTab !== "relatorios" && adminTab !== "agenda" && adminTab !== "pets" && adminTab !== "painel-ops" && (
                 <div className="admin-section-title">
                   <div>
                     <span className="eyebrow">Área selecionada</span>
@@ -3084,10 +3538,14 @@ export default function App() {
               <section className="admin-home-grid">
                 {adminModuleCards.map((card) => (
                   <button className="admin-home-card" key={card.id} onClick={() => { setAdminTab(card.id); if (card.id === "agenda") loadAgenda(adminAgendaDate, adminAgendaTipo); if (card.id === "pets") loadPets(); }}>
-                    <span>{card.label}</span>
-                    <strong>{card.metric}</strong>
-                    <small>{card.metricLabel}</small>
-                    <em>{card.description}</em>
+                    <div className="ahc-body">
+                      <strong className="ahc-label">{card.label}</strong>
+                      <em className="ahc-desc">{card.description}</em>
+                    </div>
+                    <div className="ahc-metric">
+                      <strong>{card.metric}</strong>
+                      <small>{card.metricLabel}</small>
+                    </div>
                   </button>
                 ))}
               </section>
@@ -3228,107 +3686,432 @@ export default function App() {
             )}
 
             {adminTab === "produtos" && (
-              <section className="admin-split">
-                <form className="admin-panel admin-form" onSubmit={saveProduct}>
+              <div className="pf-layout">
+
+                {/* ── Formulário horizontal ── */}
+                <form className="admin-panel pf-form" onSubmit={saveProduct}>
                   <div className="admin-panel-head">
                     <div>
                       <span className="eyebrow">Catálogo</span>
                       <h2>{editingProductId ? "Editar produto" : "Novo produto"}</h2>
                     </div>
-                    {editingProductId && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingProductId("");
-                          setProductDraft(emptyProductDraft());
+                  </div>
+
+                  <div className="pf-horiz-body">
+
+                    {/* Coluna imagem */}
+                    <div className="pf-col-img">
+                      {/* Card de preview — clique abre seletor de arquivo */}
+                      <label className="pf-img-card" htmlFor="pf-img-file">
+                        {productDraft.image ? (
+                          <img
+                            src={productDraft.image}
+                            alt=""
+                            className="pf-img-preview"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              if (e.currentTarget.nextElementSibling) {
+                                e.currentTarget.nextElementSibling.style.display = "flex";
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <span className="pf-img-placeholder" style={productDraft.image ? { display: "none" } : {}}>
+                          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                          </svg>
+                          <span>Adicionar<br />imagem</span>
+                        </span>
+                      </label>
+
+                      {/* Rodapé: botão + status (filename + limpar) */}
+                      <div className="pf-img-footer">
+                        <label className="pf-img-btn" htmlFor="pf-img-file">
+                          {adminLoading ? "Enviando…" : "Enviar imagem"}
+                        </label>
+                        <div className="pf-img-status">
+                          <span className="pf-img-filename">
+                            {productDraft.image
+                              ? productDraft.image.split("/").pop()
+                              : "Nenhuma imagem"}
+                          </span>
+                          {productDraft.image && (
+                            <button
+                              type="button"
+                              className="pf-img-clear"
+                              title="Remover imagem"
+                              onClick={() => setProductDraft((c) => ({ ...c, image: "" }))}
+                            >×</button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Input de arquivo (oculto, compartilhado) */}
+                      <input
+                        id="pf-img-file"
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            setAdminLoading(true);
+                            const result = await uploadProductImage(file, adminToken);
+                            setProductDraft((c) => ({ ...c, image: result.path }));
+                          } catch (err) {
+                            setAdminError(err.message);
+                          } finally {
+                            setAdminLoading(false);
+                          }
                         }}
-                      >
-                        Cancelar
-                      </button>
-                    )}
-                  </div>
-
-                  <label>Nome</label>
-                  <input value={productDraft.name} onChange={(event) => setProductDraft((current) => ({ ...current, name: event.target.value }))} />
-
-                  <label>Descrição</label>
-                  <textarea value={productDraft.description} onChange={(event) => setProductDraft((current) => ({ ...current, description: event.target.value }))} />
-
-                  <label>Categoria</label>
-                  <select
-                    value={productDraft.category}
-                    onChange={(event) => setProductDraft((current) => ({
-                      ...current,
-                      category: event.target.value,
-                      categoryLabel: categoryLabelFor(event.target.value)
-                    }))}
-                  >
-                    {categories.map((category) => (
-                      <option value={category.id} key={category.id}>{category.label}</option>
-                    ))}
-                  </select>
-
-                  <div className="admin-grid-2">
-                    <div>
-                      <label>Preço</label>
-                      <input type="number" step="0.01" value={productDraft.price} onChange={(event) => setProductDraft((current) => ({ ...current, price: event.target.value }))} />
+                      />
                     </div>
-                    <div>
-                      <label>Estoque</label>
-                      <input type="number" value={productDraft.stock} onChange={(event) => setProductDraft((current) => ({ ...current, stock: event.target.value }))} />
+
+                    {/* Coluna campos */}
+                    <div className="pf-col-fields">
+                      <div className="pf-fields-grid">
+                        <div className="pf-field-full">
+                          <label>Nome</label>
+                          <input value={productDraft.name} onChange={(e) => setProductDraft((c) => ({ ...c, name: e.target.value }))} placeholder="Ex: Ração Premium Cães Adultos" />
+                        </div>
+                        <div className="pf-field-full">
+                          <label>Descrição</label>
+                          <textarea value={productDraft.description} onChange={(e) => setProductDraft((c) => ({ ...c, description: e.target.value }))} placeholder="Descreva o produto brevemente…" />
+                        </div>
+                        <div>
+                          <label>Preço (R$)</label>
+                          <input type="number" step="0.01" value={productDraft.price} onChange={(e) => setProductDraft((c) => ({ ...c, price: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label>Estoque (unid.)</label>
+                          <input type="number" value={productDraft.stock} onChange={(e) => setProductDraft((c) => ({ ...c, stock: e.target.value }))} />
+                        </div>
+                      </div>
+
+                      <div className="pf-toggles">
+                        <label className={`pf-toggle-pill pf-toggle-ativo ${productDraft.ativo ? "on" : "off"}`}>
+                          <input type="checkbox" checked={productDraft.ativo} onChange={(e) => setProductDraft((c) => ({ ...c, ativo: e.target.checked }))} />
+                          {productDraft.ativo ? "Ativo" : "Inativo"}
+                        </label>
+                        <label className={`pf-toggle-pill ${productDraft.promo ? "on" : ""}`}>
+                          <input type="checkbox" checked={productDraft.promo} onChange={(e) => setProductDraft((c) => ({ ...c, promo: e.target.checked }))} />
+                          Promoção
+                        </label>
+                        <label className={`pf-toggle-pill ${productDraft.combo ? "on" : ""}`}>
+                          <input type="checkbox" checked={productDraft.combo} onChange={(e) => setProductDraft((c) => ({ ...c, combo: e.target.checked }))} />
+                          Combo
+                        </label>
+                      </div>
+
+                      <div className="pf-form-footer">
+                        {editingProductId && (
+                          <button type="button" className="pf-btn-cancel" onClick={() => { setEditingProductId(""); setProductDraft(emptyProductDraft()); }}>
+                            Cancelar
+                          </button>
+                        )}
+                        <button type="submit" className="pf-btn-save" disabled={adminLoading}>
+                          {adminLoading ? "Salvando…" : editingProductId ? "Salvar alterações" : "Cadastrar produto"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  <label>Imagem</label>
-                  <div className="admin-image-field">
-                    <input value={productDraft.image} onChange={(event) => setProductDraft((current) => ({ ...current, image: event.target.value }))} />
-                    <img src={productDraft.image} alt="" />
                   </div>
-
-                  <div className="admin-switches">
-                    <label>
-                      <input type="checkbox" checked={productDraft.promo} onChange={(event) => setProductDraft((current) => ({ ...current, promo: event.target.checked }))} />
-                      Promoção
-                    </label>
-                    <label>
-                      <input type="checkbox" checked={productDraft.combo} onChange={(event) => setProductDraft((current) => ({ ...current, combo: event.target.checked }))} />
-                      Combo
-                    </label>
-                  </div>
-
-                  <button type="submit" disabled={adminLoading}>
-                    {editingProductId ? "Salvar produto" : "Cadastrar produto"}
-                  </button>
                 </form>
 
-                <section className="admin-panel">
-                  <div className="admin-panel-head">
+                {/* ── Lista em tabela ── */}
+                <section className="admin-panel pft-panel">
+                  <div className="admin-panel-head pft-head-bar">
                     <div>
-                      <span className="eyebrow">Produtos</span>
+                      <span className="eyebrow">Produtos físicos</span>
                       <h2>Lista cadastrada</h2>
                     </div>
-                    <button onClick={() => loadAdminData(adminToken)}>Atualizar</button>
+                    <div className="pft-toolbar">
+                      <div className="pf-search-bar pf-search-bar--inline">
+                        <input
+                          type="search"
+                          placeholder="Buscar produto…"
+                          value={adminProductSearch}
+                          onChange={(e) => setAdminProductSearch(e.target.value)}
+                        />
+                      </div>
+                      <button onClick={() => loadAdminData(adminToken)}>↻ Atualizar</button>
+                    </div>
                   </div>
 
-                  <div className="admin-list">
-                    {adminProducts.map((product) => (
-                      <article className="admin-list-item" key={product.id}>
-                        <img src={product.image} alt={product.name} />
-                        <div>
-                          <strong>{product.name}</strong>
-                          <span>{product.categoryLabel} • {money(product.price)}</span>
-                          <small>Estoque: {product.stock}</small>
+                  <div className="pft-table">
+                    <div className="pft-head-row">
+                      <span></span>
+                      <span>Nome</span>
+                      <span>Categoria</span>
+                      <span>Preço</span>
+                      <span>Estoque</span>
+                      <span>Status</span>
+                      <span></span>
+                    </div>
+
+                    {adminProducts
+                      .filter((p) => p.tipo !== "servico")
+                      .filter((p) => !adminProductSearch || p.name.toLowerCase().includes(adminProductSearch.toLowerCase()))
+                      .map((product) => (
+                        <div className={`pft-row${product.ativo === false ? " pft-row--inactive" : ""}`} key={product.id}>
+                          <img className="pft-img" src={product.image} alt={product.name} />
+                          <span className="pft-name">{product.name}</span>
+                          <span className="pft-cat">{product.categoryLabel}</span>
+                          <span className="pft-price">{money(product.price)}</span>
+                          <span className="pft-stock">{product.stock}</span>
+                          <span className="pft-status">
+                            {product.ativo === false
+                              ? <span className="admin-badge-inactive">Inativo</span>
+                              : <span className="pft-badge-active">Ativo</span>
+                            }
+                          </span>
+                          <div className="pft-actions">
+                            <button className="pft-btn pft-btn-edit" onClick={() => startEditingProduct(product)}>Editar</button>
+                            <button className="pft-btn pft-btn-del" onClick={() => removeAdminProduct(product.id)}>Excluir</button>
+                          </div>
                         </div>
-                        <div className="admin-list-actions">
-                          <button onClick={() => startEditingProduct(product)}>Editar</button>
-                          <button onClick={() => removeAdminProduct(product.id)}>Excluir</button>
-                        </div>
-                      </article>
-                    ))}
-                    {adminProducts.length === 0 && <p className="admin-muted">Nenhum produto cadastrado.</p>}
+                      ))}
+
+                    {adminProducts.filter((p) => p.tipo !== "servico").length === 0 && !adminError && (
+                      <p className="admin-muted pft-empty">Nenhum produto cadastrado.</p>
+                    )}
+                    {adminProductSearch && adminProducts.filter((p) => p.tipo !== "servico").filter((p) => p.name.toLowerCase().includes(adminProductSearch.toLowerCase())).length === 0 && (
+                      <p className="admin-muted pft-empty">Nenhum produto encontrado para "{adminProductSearch}".</p>
+                    )}
                   </div>
                 </section>
-              </section>
+
+              </div>
+            )}
+
+            {adminTab === "servicos" && (
+              <div className="pf-layout">
+
+                {/* ── Formulário de serviço ── */}
+                <form className="admin-panel pf-form" onSubmit={saveService}>
+                  <div className="admin-panel-head">
+                    <div>
+                      <span className="eyebrow">Catálogo</span>
+                      <h2>{editingServiceId ? "Editar serviço" : "Novo serviço"}</h2>
+                    </div>
+                  </div>
+
+                  <div className="pf-horiz-body">
+
+                    {/* Coluna imagem — mesmo padrão de Produtos */}
+                    <div className="pf-col-img">
+                      <label className="pf-img-card" htmlFor="sf-img-file">
+                        {serviceDraft.image ? (
+                          <img
+                            src={serviceDraft.image}
+                            alt=""
+                            className="pf-img-preview"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                              if (e.currentTarget.nextElementSibling) {
+                                e.currentTarget.nextElementSibling.style.display = "flex";
+                              }
+                            }}
+                          />
+                        ) : null}
+                        <span className="pf-img-placeholder" style={serviceDraft.image ? { display: "none" } : {}}>
+                          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                          </svg>
+                          <span>Adicionar<br />imagem</span>
+                        </span>
+                      </label>
+
+                      <div className="pf-img-footer">
+                        <label className="pf-img-btn" htmlFor="sf-img-file">
+                          {adminLoading ? "Enviando…" : "Enviar imagem"}
+                        </label>
+                        <div className="pf-img-status">
+                          <span className="pf-img-filename">
+                            {serviceDraft.image
+                              ? serviceDraft.image.split("/").pop()
+                              : "Nenhuma imagem"}
+                          </span>
+                          {serviceDraft.image && (
+                            <button
+                              type="button"
+                              className="pf-img-clear"
+                              title="Remover imagem"
+                              onClick={() => setServiceDraft((c) => ({ ...c, image: "" }))}
+                            >×</button>
+                          )}
+                        </div>
+                      </div>
+
+                      <input
+                        id="sf-img-file"
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            setAdminLoading(true);
+                            const result = await uploadProductImage(file, adminToken);
+                            setServiceDraft((c) => ({ ...c, image: result.path }));
+                          } catch (err) {
+                            setAdminError(err.message);
+                          } finally {
+                            setAdminLoading(false);
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {/* Coluna campos */}
+                    <div className="pf-col-fields">
+                      <div className="pf-fields-grid">
+                        <div className="pf-field-full">
+                          <label>Nome</label>
+                          <input
+                            value={serviceDraft.name}
+                            onChange={(e) => setServiceDraft((c) => ({ ...c, name: e.target.value }))}
+                            placeholder="Ex: Banho completo cão pequeno porte"
+                          />
+                        </div>
+                        <div className="pf-field-full">
+                          <label>Descrição</label>
+                          <textarea
+                            value={serviceDraft.description}
+                            onChange={(e) => setServiceDraft((c) => ({ ...c, description: e.target.value }))}
+                            placeholder="Descreva o serviço brevemente…"
+                          />
+                        </div>
+                        <div className="pf-field-full">
+                          <label>Tipo</label>
+                          <select
+                            value={serviceDraft.category}
+                            onChange={(e) => setServiceDraft((c) => ({
+                              ...c,
+                              category: e.target.value,
+                              categoryLabel: categoryLabelFor(e.target.value) || e.target.value,
+                            }))}
+                          >
+                            <option value="banho_tosa">Banho & Tosa</option>
+                            <option value="clinica">Clínica</option>
+                            <option value="comunidade">Comunidade</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label>Preço (R$)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={serviceDraft.price}
+                            onChange={(e) => setServiceDraft((c) => ({ ...c, price: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pf-toggles">
+                        <label className={`pf-toggle-pill pf-toggle-ativo ${serviceDraft.ativo ? "on" : "off"}`}>
+                          <input
+                            type="checkbox"
+                            checked={serviceDraft.ativo}
+                            onChange={(e) => setServiceDraft((c) => ({ ...c, ativo: e.target.checked }))}
+                          />
+                          {serviceDraft.ativo ? "Ativo" : "Inativo"}
+                        </label>
+                      </div>
+
+                      <div className="pf-form-footer">
+                        {editingServiceId && (
+                          <button
+                            type="button"
+                            className="pf-btn-cancel"
+                            onClick={() => { setEditingServiceId(""); setServiceDraft(emptyServiceDraft()); }}
+                          >
+                            Cancelar
+                          </button>
+                        )}
+                        <button type="submit" className="pf-btn-save" disabled={adminLoading}>
+                          {editingServiceId ? "Salvar serviço" : "Cadastrar serviço"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+
+                {/* ── Tabela de serviços ── */}
+                <section className="admin-panel pft-panel">
+                  <div className="admin-panel-head pft-head-bar">
+                    <div>
+                      <span className="eyebrow">Serviços agendáveis</span>
+                      <h2>Lista cadastrada</h2>
+                    </div>
+                    <div className="pft-toolbar">
+                      <div className="pf-search-bar pf-search-bar--inline">
+                        <input
+                          type="search"
+                          placeholder="Buscar serviço…"
+                          value={adminServiceSearch}
+                          onChange={(e) => setAdminServiceSearch(e.target.value)}
+                        />
+                      </div>
+                      <button onClick={() => loadAdminData(adminToken)}>↻ Atualizar</button>
+                    </div>
+                  </div>
+
+                  <div className="pft-table">
+                    <div className="pft-head-row sft-head-row">
+                      <span></span>
+                      <span>Nome</span>
+                      <span>Tipo</span>
+                      <span>Preço</span>
+                      <span>Status</span>
+                      <span></span>
+                    </div>
+
+                    {adminProducts
+                      .filter((p) => p.tipo === "servico")
+                      .filter((p) => !adminServiceSearch || p.name.toLowerCase().includes(adminServiceSearch.toLowerCase()))
+                      .map((service) => (
+                        <div
+                          className={`pft-row sft-row${service.ativo === false ? " pft-row--inactive" : ""}`}
+                          key={service.id}
+                        >
+                          <img
+                            className="pft-img"
+                            src={service.image}
+                            alt={service.name}
+                            onError={(e) => { e.currentTarget.style.opacity = "0"; }}
+                          />
+                          <span className="pft-name">{service.name}</span>
+                          <span className="pft-cat">{service.categoryLabel}</span>
+                          <span className="pft-price">{money(service.price)}</span>
+                          <span className="pft-status">
+                            {service.ativo === false
+                              ? <span className="admin-badge-inactive">Inativo</span>
+                              : <span className="pft-badge-active">Ativo</span>}
+                          </span>
+                          <div className="pft-actions">
+                            <button className="pft-btn pft-btn-edit" onClick={() => startEditingService(service)}>Editar</button>
+                            <button className="pft-btn pft-btn-del" onClick={() => removeAdminService(service.id)}>Excluir</button>
+                          </div>
+                        </div>
+                      ))}
+
+                    {adminProducts.filter((p) => p.tipo === "servico").length === 0 && !adminError && (
+                      <div className="pft-empty">Nenhum serviço cadastrado.</div>
+                    )}
+                    {adminServiceSearch && adminProducts.filter((p) => p.tipo === "servico").filter((p) => p.name.toLowerCase().includes(adminServiceSearch.toLowerCase())).length === 0 && (
+                      <p className="admin-muted pft-empty">Nenhum serviço encontrado para "{adminServiceSearch}".</p>
+                    )}
+                  </div>
+                </section>
+
+              </div>
             )}
 
             {adminTab === "relatorios" && (
@@ -3729,23 +4512,29 @@ export default function App() {
             )}
 
             {adminTab === "agenda" && (() => {
-              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayStr = saoPauloDateKey();
               const isToday = adminAgendaDate === todayStr;
-              const agendaStats = {
-                total:          adminAppointments.length,
-                agendado:       adminAppointments.filter((a) => a.status === "agendado").length,
-                confirmado:     adminAppointments.filter((a) => a.status === "confirmado").length,
+              const nowStr = saoPauloTimeHHMM();
+              const clockStr = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+              const atrasados = isToday
+                ? adminAppointments.filter(
+                    (a) => ["agendado", "confirmado"].includes(a.status) && a.hora_inicio < nowStr
+                  ).length
+                : 0;
+
+              const kpi = {
                 em_atendimento: adminAppointments.filter((a) => a.status === "em_atendimento").length,
-                concluido:      adminAppointments.filter((a) => a.status === "concluido").length,
-                cancelado:      adminAppointments.filter((a) => a.status === "cancelado").length,
+                agendado: adminAppointments.filter((a) => ["agendado", "confirmado"].includes(a.status)).length,
+                concluido: adminAppointments.filter((a) => a.status === "concluido").length,
+                cancelado: adminAppointments.filter((a) => a.status === "cancelado").length,
+                profissionais: new Set(adminAppointments.map((a) => a.profissional).filter(Boolean)).size,
               };
-              const hourGroups = {};
-              for (const appt of adminAppointments) {
-                const h = appt.hora_inicio.slice(0, 2);
-                if (!hourGroups[h]) hourGroups[h] = [];
-                hourGroups[h].push(appt);
-              }
-              const sortedHours = Object.keys(hourGroups).sort();
+
+              const sortedAppts = [...adminAppointments].sort((a, b) => {
+                const t = a.hora_inicio.localeCompare(b.hora_inicio);
+                return t !== 0 ? t : (a.profissional || "").localeCompare(b.profissional || "");
+              });
 
               function shiftDay(delta) {
                 const d = new Date(adminAgendaDate + "T12:00:00");
@@ -3754,8 +4543,6 @@ export default function App() {
                 setAdminAgendaDate(nd);
                 loadAgenda(nd, adminAgendaTipo);
               }
-
-              const advanceLabel = { agendado: "✓ Confirmar", confirmado: "▶ Iniciar", em_atendimento: "✔ Concluir" };
 
               return (
                 <section className="agenda-page">
@@ -3813,137 +4600,142 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* ── Stats bar ── */}
-                  {agendaStats.total > 0 && (
-                    <div className="agenda-stats-bar">
-                      <div className="agenda-stat">
-                        <strong>{agendaStats.total}</strong><span>Total</span>
-                      </div>
-                      {agendaStats.agendado > 0 && (
-                        <div className="agenda-stat agenda-stat--agendado">
-                          <strong>{agendaStats.agendado}</strong><span>Aguardando</span>
-                        </div>
-                      )}
-                      {agendaStats.confirmado > 0 && (
-                        <div className="agenda-stat agenda-stat--confirmado">
-                          <strong>{agendaStats.confirmado}</strong><span>Confirmados</span>
-                        </div>
-                      )}
-                      {agendaStats.em_atendimento > 0 && (
-                        <div className="agenda-stat agenda-stat--em_atendimento">
-                          <strong>{agendaStats.em_atendimento}</strong><span>Em atendimento</span>
-                        </div>
-                      )}
-                      {agendaStats.concluido > 0 && (
-                        <div className="agenda-stat agenda-stat--concluido">
-                          <strong>{agendaStats.concluido}</strong><span>Concluídos</span>
-                        </div>
-                      )}
-                      {agendaStats.cancelado > 0 && (
-                        <div className="agenda-stat agenda-stat--cancelado">
-                          <strong>{agendaStats.cancelado}</strong><span>Cancelados</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {adminAgendaError && !adminError && <p className="agenda-error-msg">{adminAgendaError}</p>}
 
-                  {adminAgendaError && <p className="agenda-error-msg">{adminAgendaError}</p>}
+                  {/* ── Painel TV ── */}
+                  <div className="adm-tv-outer">
+                    <div className="adm-tv-panel">
 
-                  {/* ── Timeline ── */}
-                  <div className="agenda-timeline">
-                    {adminAgendaLoading ? (
-                      <div className="agenda-empty-state">
-                        <span className="agenda-empty-icon agenda-spin">⟳</span>
-                        <strong>Carregando agenda...</strong>
-                      </div>
-                    ) : agendaStats.total === 0 ? (
-                      <div className="agenda-empty-state">
-                        <span className="agenda-empty-icon">📅</span>
-                        <strong>Nenhum agendamento</strong>
-                        <p>
-                          {adminAgendaTipo
-                            ? `Sem ${SERVICE_TYPE_LABEL[adminAgendaTipo].toLowerCase()} em ${formatAgendaDate(adminAgendaDate)}.`
-                            : `Agenda livre em ${formatAgendaDate(adminAgendaDate)}.`}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="agenda-hour-groups">
-                        {sortedHours.map((hour) => (
-                          <div key={hour} className="agenda-hour-group">
-                            <div className="agenda-hour-marker">
-                              <span className="agenda-hour-label">{hour}h</span>
-                              <div className="agenda-hour-line" />
-                            </div>
-                            <div className="agenda-hour-cards">
-                              {hourGroups[hour].map((appt) => (
-                                <article
-                                  key={appt.id}
-                                  className={`agenda-appt-card agenda-appt--${appt.status} agenda-svc--${appt.servico_tipo}`}
-                                >
-                                  {/* Coluna de tempo */}
-                                  <div className="agenda-time-col">
-                                    <span className="agenda-time-start">{appt.hora_inicio}</span>
-                                    <div className="agenda-time-bar" />
-                                    <span className="agenda-time-end">{appt.hora_fim}</span>
-                                  </div>
+                      <header className="adm-tv-top">
+                        <strong className="adm-tv-title">
+                          {adminAgendaTipo ? SERVICE_TYPE_LABEL[adminAgendaTipo] : "Agenda Completa"}
+                        </strong>
+                        <span className="adm-tv-date">▦ {formatAgendaDate(adminAgendaDate)}</span>
+                        <time className="adm-tv-clock">{clockStr}</time>
+                      </header>
 
-                                  {/* Corpo */}
-                                  <div className="agenda-appt-body">
-                                    <div className="agenda-appt-top-row">
-                                      <span className="agenda-pet-avatar">
-                                        {appt.pet_tipo === "cao" ? "🐕" : appt.pet_tipo === "gato" ? "🐈" : "🐾"}
-                                      </span>
-                                      <div className="agenda-appt-title">
-                                        <strong className="agenda-appt-pet-name">{appt.pet_nome}</strong>
-                                        <span className={`agenda-svc-chip agenda-svc-chip--${appt.servico_tipo}`}>
-                                          {appt.servico_nome}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="agenda-appt-meta">
-                                      <span>👤 {appt.profissional}</span>
-                                      <span>📱 {appt.cliente_nome}</span>
-                                      {appt.pet_porte && (
-                                        <span className="agenda-porte-tag">{appt.pet_porte}</span>
-                                      )}
-                                    </div>
-                                    {appt.observacoes && (
-                                      <p className="agenda-appt-obs">"{appt.observacoes}"</p>
-                                    )}
-                                  </div>
-
-                                  {/* Coluna de ações */}
-                                  <div className="agenda-actions-col">
-                                    <span className={`agenda-status-badge agenda-status--${appt.status}`}>
-                                      {APPOINTMENT_STATUS_LABEL[appt.status] ?? appt.status}
-                                    </span>
-                                    <div className="agenda-appt-btns">
-                                      {APPOINTMENT_NEXT_STATUS[appt.status] && (
-                                        <button
-                                          className="agenda-btn-advance"
-                                          onClick={() => handleAgendaStatusChange(appt, APPOINTMENT_NEXT_STATUS[appt.status])}
-                                        >
-                                          {advanceLabel[appt.status]}
-                                        </button>
-                                      )}
-                                      {appt.status !== "cancelado" && appt.status !== "concluido" && (
-                                        <button
-                                          className="agenda-btn-cancel"
-                                          onClick={() => handleAgendaDelete(appt)}
-                                          aria-label="Cancelar agendamento"
-                                        >
-                                          ✕
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                </article>
-                              ))}
-                            </div>
+                      <div className="adm-tv-table-wrap">
+                        {adminAgendaLoading ? (
+                          <div className="agenda-empty-state">
+                            <span className="agenda-empty-icon agenda-spin">⟳</span>
+                            <strong>Carregando agenda...</strong>
                           </div>
-                        ))}
+                        ) : adminAppointments.length === 0 ? (
+                          <div className="agenda-empty-state">
+                            <span className="agenda-empty-icon">📅</span>
+                            <strong>Nenhum agendamento</strong>
+                            <p>
+                              {adminAgendaTipo
+                                ? `Sem ${SERVICE_TYPE_LABEL[adminAgendaTipo].toLowerCase()} em ${formatAgendaDate(adminAgendaDate)}.`
+                                : `Agenda livre em ${formatAgendaDate(adminAgendaDate)}.`}
+                            </p>
+                          </div>
+                        ) : (
+                          <table className="adm-tv-table">
+                            <thead>
+                              <tr>
+                                <th>Horário</th>
+                                <th>Pet</th>
+                                <th>Consulta / Serviço</th>
+                                <th>Tutor</th>
+                                <th>Profissional</th>
+                                <th>Status</th>
+                                <th aria-label="Ações" />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sortedAppts.map((appt, idx) => {
+                                const isAtrasado = isToday && appt.hora_inicio < nowStr && ["agendado", "confirmado"].includes(appt.status);
+                                const rowStatus = isAtrasado ? "atrasado" : appt.status;
+                                const canAdvance = !!APPOINTMENT_NEXT_STATUS[appt.status];
+                                const canCancel = appt.status !== "cancelado" && appt.status !== "concluido";
+                                return (
+                                  <tr key={appt.id} className={`${idx % 2 ? "adm-tv-alt " : ""}adm-tv-row-${rowStatus}`}>
+                                    <td className="adm-tv-hour">
+                                      <span className="adm-tv-hour-pill">{appt.hora_inicio}</span>
+                                    </td>
+                                    <td className="adm-tv-pet">
+                                      {appt.pet_tipo === "cao" ? "🐕" : appt.pet_tipo === "gato" ? "🐈" : "🐾"}{" "}
+                                      {appt.pet_nome}
+                                      {appt.pet_porte && <span className="adm-tv-porte"> · {appt.pet_porte}</span>}
+                                    </td>
+                                    <td>{appt.servico_nome}</td>
+                                    <td className="adm-tv-tutor">{appt.cliente_nome || appt.cliente_telefone || "—"}</td>
+                                    <td className="adm-tv-pro">{appt.profissional || "—"}</td>
+                                    <td className="adm-tv-status">
+                                      {canAdvance ? (
+                                        <button
+                                          className={`adm-badge adm-badge--${rowStatus}`}
+                                          onClick={() => handleAgendaStatusChange(appt, APPOINTMENT_NEXT_STATUS[appt.status])}
+                                          title="Clique para avançar o status"
+                                        >
+                                          {isAtrasado ? "Atrasado" : (APPOINTMENT_STATUS_LABEL[appt.status] ?? appt.status)}
+                                        </button>
+                                      ) : (
+                                        <span className={`adm-badge adm-badge--static adm-badge--${appt.status}`}>
+                                          {APPOINTMENT_STATUS_LABEL[appt.status] ?? appt.status}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="adm-tv-actions">
+                                      {canCancel && (
+                                        <button
+                                          className="adm-tv-btn-cancel"
+                                          onClick={() => handleAgendaDelete(appt)}
+                                          title="Cancelar agendamento"
+                                        >✕</button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
                       </div>
-                    )}
+                    </div>
+
+                    {/* ── KPI footer ── */}
+                    <footer className="adm-tv-kpi-bar">
+                      <div className="adm-tv-kpi-item">
+                        <span className="adm-tv-kpi-label">Atendendo</span>
+                        <span className="adm-tv-kpi-num adm-kpi-atend">{kpi.em_atendimento}</span>
+                      </div>
+                      <div className="adm-tv-kpi-sep" />
+                      <div className="adm-tv-kpi-item">
+                        <span className="adm-tv-kpi-label">Aguardando</span>
+                        <span className="adm-tv-kpi-num adm-kpi-agrd">{kpi.agendado}</span>
+                      </div>
+                      {atrasados > 0 && (
+                        <>
+                          <div className="adm-tv-kpi-sep" />
+                          <div className="adm-tv-kpi-item">
+                            <span className="adm-tv-kpi-label">Atrasados</span>
+                            <span className="adm-tv-kpi-num adm-kpi-atras">{atrasados}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="adm-tv-kpi-sep" />
+                      <div className="adm-tv-kpi-item">
+                        <span className="adm-tv-kpi-label">Concluídos</span>
+                        <span className="adm-tv-kpi-num adm-kpi-conc">{kpi.concluido}</span>
+                      </div>
+                      {kpi.cancelado > 0 && (
+                        <>
+                          <div className="adm-tv-kpi-sep" />
+                          <div className="adm-tv-kpi-item">
+                            <span className="adm-tv-kpi-label">Cancelados</span>
+                            <span className="adm-tv-kpi-num adm-kpi-cancel">{kpi.cancelado}</span>
+                          </div>
+                        </>
+                      )}
+                      <div className="adm-tv-kpi-sep" />
+                      <div className="adm-tv-kpi-item">
+                        <span className="adm-tv-kpi-label">Profissionais</span>
+                        <span className="adm-tv-kpi-num adm-kpi-prof">{kpi.profissionais}</span>
+                      </div>
+                      <div className="adm-tv-kpi-brand">🐾 Farmavet</div>
+                    </footer>
                   </div>
 
                 </section>
@@ -4028,7 +4820,7 @@ export default function App() {
 
                     <div className="pets-form-row">
                       <label>Telefone *
-                        <input required type="tel" inputMode="tel" value={petDraft.responsavel_tel} onChange={(e) => setPetDraft((d) => ({ ...d, responsavel_tel: e.target.value }))} placeholder="(11) 99999-9999" />
+                        <input required type="tel" inputMode="tel" value={petDraft.responsavel_tel} onChange={(e) => setPetDraft((d) => ({ ...d, responsavel_tel: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" />
                       </label>
                       <label>E-mail
                         <input type="email" value={petDraft.responsavel_email} onChange={(e) => setPetDraft((d) => ({ ...d, responsavel_email: e.target.value }))} placeholder="Opcional" />
@@ -4081,7 +4873,7 @@ export default function App() {
                       </select>
                     </div>
 
-                    {adminPetsError && <p className="pets-error">{adminPetsError}</p>}
+                    {adminPetsError && !adminError && <p className="pets-error">{adminPetsError}</p>}
 
                     {!adminPetsLoading && adminPets.length === 0 && (
                       <p className="pets-empty">Nenhum pet encontrado.</p>
@@ -4101,7 +4893,7 @@ export default function App() {
                                 {pet.raca ? ` · ${pet.raca}` : ""}
                                 {pet.porte ? ` · ${PET_PORTE_LABEL[pet.porte] ?? pet.porte}` : ""}
                               </span>
-                              <span className="pet-card-responsavel">📱 {pet.responsavel_nome} — {pet.responsavel_tel}</span>
+                              <span className="pet-card-responsavel">📱 {pet.responsavel_nome} — {formatPhone(pet.responsavel_tel)}</span>
                               {pet.observacoes && <span className="pet-card-obs">{pet.observacoes}</span>}
                             </div>
                             <div className="pet-card-actions">
@@ -4149,7 +4941,6 @@ export default function App() {
               </section>
             </section>
 
-            {adminError && <p className="payment-error">{adminError}</p>}
           </>
         )}
       </main>
@@ -4195,7 +4986,30 @@ export default function App() {
           />
         </div>
 
-        {/* ── 3. Escolha de serviços e produtos ────────────────────────── */}
+        <button className="home-visitor-btn" onClick={() => openCatalogAt("produtos")}>
+          Explorar sem identificar →
+        </button>
+
+        {/* ── 3. Campanha especial (opcional) ──────────────────────────── */}
+        {activeCampaign && (
+          <button
+            className={`home-campaign${activeCampaign.image ? " home-campaign--image" : ""}`}
+            style={{
+              ...(activeCampaign.accent ? { "--campaign-accent": activeCampaign.accent } : {}),
+              ...(activeCampaign.image ? { "--campaign-image": `url(${activeCampaign.image})` } : {}),
+            }}
+            onClick={() => openCatalogAt(activeCampaign.targetCategory)}
+          >
+            <div className="home-campaign-text">
+              <span className="home-campaign-label">Campanha especial</span>
+              <strong>{activeCampaign.title}</strong>
+              <p>{activeCampaign.subtitle}</p>
+            </div>
+            <span className="home-campaign-cta">{activeCampaign.buttonLabel} ›</span>
+          </button>
+        )}
+
+        {/* ── 4. Escolha de serviços e produtos ────────────────────────── */}
         <section className="home-intent">
           <h2 className="home-intent-heading">O que você precisa hoje?</h2>
 
@@ -4227,20 +5041,11 @@ export default function App() {
               <span className="home-card-arrow">›</span>
             </button>
 
-            <button className="home-card home-card--vacina" onClick={() => openCatalogAt("clinica")}>
-              <span className="home-card-icon">💉</span>
+            <button className="home-card home-card--comunidade" onClick={() => openCatalogAt("comunidade")}>
+              <span className="home-card-icon">🤝</span>
               <div className="home-card-text">
-                <strong>Vacinação</strong>
-                <small>Protocolos para cães e gatos</small>
-              </div>
-              <span className="home-card-arrow">›</span>
-            </button>
-
-            <button className="home-card home-card--promo" onClick={() => openCatalogAt("promocoes")}>
-              <span className="home-card-icon">🏷️</span>
-              <div className="home-card-text">
-                <strong>Promoções</strong>
-                <small>Ofertas da semana</small>
+                <strong>Comunidade Pet</strong>
+                <small>Adoção, eventos e campanhas</small>
               </div>
               <span className="home-card-arrow">›</span>
             </button>

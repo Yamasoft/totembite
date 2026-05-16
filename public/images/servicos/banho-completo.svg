@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" width="400" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0D2137"/>
+      <stop offset="100%" stop-color="#1A3A5C"/>
+    </linearGradient>
+    <radialGradient id="atmos" cx="50%" cy="58%" r="55%">
+      <stop offset="0%" stop-color="#1976D2" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#1976D2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tub-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#DCEEFF"/>
+      <stop offset="100%" stop-color="#B8D4F0"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#42A5F5"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="400" height="280" rx="14" fill="url(#atmos)"/>
+
+  <!-- Vapor — 3 filetes elegantes -->
+  <path d="M155,158 Q148,138 156,118 Q163,98 155,78" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.28"/>
+  <path d="M200,150 Q192,127 200,104 Q208,81 200,58" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.32"/>
+  <path d="M245,158 Q253,138 244,118 Q236,98 245,78" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.28"/>
+
+  <!-- Banheira — elemento principal -->
+  <g filter="url(#soft)">
+    <!-- Borda superior (rim) -->
+    <rect x="52" y="170" width="296" height="16" rx="8" fill="url(#tub-fill)"/>
+    <!-- Corpo da banheira -->
+    <path d="M65,186 Q62,240 200,244 Q338,240 335,186 Z" fill="url(#tub-fill)"/>
+    <!-- Água -->
+    <path d="M70,198 Q200,218 330,198 L330,236 Q200,240 70,236 Z" fill="url(#water)" opacity="0.82"/>
+    <!-- Espuma — uma única onda orgânica -->
+    <path d="M70,198 Q100,184 130,198 Q160,212 190,198 Q220,184 252,198 Q282,212 330,198"
+          fill="none" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.9"/>
+    <path d="M70,198 Q100,182 130,198 Q160,213 190,198 Q220,183 252,198 Q282,213 330,198
+             L330,193 Q300,178 268,192 Q238,206 208,193 Q178,180 148,193 Q118,206 88,193 Z"
+          fill="white" opacity="0.82"/>
+    <!-- Pés da banheira -->
+    <rect x="92" y="242" width="11" height="22" rx="5.5" fill="#B0C8E0"/>
+    <rect x="297" y="242" width="11" height="22" rx="5.5" fill="#B0C8E0"/>
+  </g>
+
+  <!-- Bolhas — 4 círculos limpos, pesos diferentes -->
+  <circle cx="145" cy="68" r="9"  fill="none" stroke="white" stroke-width="1.8" opacity="0.38"/>
+  <circle cx="147" cy="64" r="3"  fill="white" opacity="0.22"/>
+  <circle cx="240" cy="82" r="12" fill="none" stroke="white" stroke-width="1.8" opacity="0.30"/>
+  <circle cx="243" cy="77" r="4"  fill="white" opacity="0.18"/>
+  <circle cx="108" cy="112" r="7" fill="none" stroke="white" stroke-width="1.5" opacity="0.28"/>
+  <circle cx="300" cy="94" r="6"  fill="none" stroke="white" stroke-width="1.5" opacity="0.25"/>
+
+  <!-- Patinha — brand mark sutil, canto inf. direito -->
+  <g transform="translate(352,238)" opacity="0.14">
+    <ellipse cx="0" cy="7" rx="10" ry="9" fill="white"/>
+    <ellipse cx="-7" cy="0"  rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="-2" cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="4"  cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="9"  cy="0"  rx="4.5" ry="5.5" fill="white"/>
+  </g>
+</svg>

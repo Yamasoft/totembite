@@ -1,8 +1,81 @@
+const imagePaths = {
+  banners: {
+    banhoTosa: '/images/banners/campanha-banho-tosa-premium.png',
+    racao: '/images/banners/campanha-racao-premium.svg',
+    vacinacao: '/images/banners/campanha-vacinacao-premium.svg',
+  },
+  comunidade: {
+    adocao: '/images/comunidade/com-adocao.svg',
+    adestramento: '/images/comunidade/com-adestramento.svg',
+    eventos: '/images/comunidade/com-eventos.svg',
+    racao: '/images/comunidade/com-racao.svg',
+    vacinacaoCampanha: '/images/comunidade/com-vacinacao-campanha.svg',
+  },
+  produtos: {
+    antipulgas: '/images/produtos/antipulgas-veterinario.png',
+    racaoCaes: '/images/produtos/racao-caes-premium.png',
+    racaoGatos: '/images/produtos/racao-gatos-premium.png',
+    shampoo: '/images/produtos/shampoo-pet-dermatologico.png',
+    vermifugo: '/images/produtos/vermifugo-oral-premium.png',
+  },
+  servicos: {
+    banhoCompleto: '/images/servicos/banho-completo-premium.webp',
+    banhoHidratacao: '/images/servicos/banho-hidratacao-premium.webp',
+    consultaVeterinaria: '/images/servicos/consulta-veterinaria-premium.webp',
+    examesLaboratoriais: '/images/servicos/exames-laboratoriais-premium.webp',
+    tosaHigienica: '/images/servicos/tosa-higienica-premium.webp',
+    vacinacao: '/images/servicos/vacinacao-premium.webp',
+  },
+}
+
 export const categories = [
   { id: 'produtos', label: 'Produtos pet' },
   { id: 'banho_tosa', label: 'Banho e tosa' },
   { id: 'clinica', label: 'Clínica veterinária' },
-  { id: 'promocoes', label: 'Promoções' },
+  { id: 'comunidade', label: 'Comunidade Pet' },
+]
+
+export const communityItems = [
+  {
+    id: 'com-adocao',
+    name: 'Adoção de animais',
+    description: 'Pets disponíveis para adoção no Shopping Metrópole. Venha conhecer nossos amigos que esperam por um lar.',
+    tag: 'Adoção',
+    action: 'Tenho interesse',
+    image: imagePaths.comunidade.adocao,
+  },
+  {
+    id: 'com-vacinacao-campanha',
+    name: 'Campanha de vacinação',
+    description: 'Vacinação antirrábica e contra doenças comuns em datas especiais com condição diferenciada.',
+    tag: 'Campanha',
+    action: 'Saiba mais',
+    image: imagePaths.comunidade.vacinacaoCampanha,
+  },
+  {
+    id: 'com-adestramento',
+    name: 'Curso de adestramento',
+    description: 'Turmas presenciais com instrutor certificado. Cães de todos os portes e idades bem-vindos.',
+    tag: 'Curso',
+    action: 'Participar',
+    image: imagePaths.comunidade.adestramento,
+  },
+  {
+    id: 'com-eventos',
+    name: 'Eventos pet no shopping',
+    description: 'Encontros, feiras e atividades especiais para tutores e seus pets no Shopping Metrópole.',
+    tag: 'Evento',
+    action: 'Ver detalhes',
+    image: imagePaths.comunidade.eventos,
+  },
+  {
+    id: 'com-racao',
+    name: 'Distribuição de ração',
+    description: 'Campanha solidária de distribuição de ração para animais em situação de vulnerabilidade.',
+    tag: 'Solidariedade',
+    action: 'Participar',
+    image: imagePaths.comunidade.racao,
+  },
 ]
 
 export const initialDailyPromotions = [
@@ -12,6 +85,7 @@ export const initialDailyPromotions = [
     title: 'Promoção de banho para cães e gatos',
     description: 'Banho completo com secagem e finalização. Válido em dias da semana no app.',
     highlight: 'a partir de R$ 59,90',
+    image: imagePaths.banners.banhoTosa,
   },
   {
     id: 'promo-2',
@@ -19,6 +93,7 @@ export const initialDailyPromotions = [
     title: 'Pacote de vacinação com condição especial',
     description: 'Combine V8/V10 e antirrábica com orientação pós-vacina.',
     highlight: 'pacote a partir de R$ 189,90',
+    image: imagePaths.banners.vacinacao,
   },
   {
     id: 'promo-3',
@@ -26,6 +101,7 @@ export const initialDailyPromotions = [
     title: 'Ração premium com preço especial',
     description: 'Seleção para diferentes portes e idades.',
     highlight: 'até 15% OFF',
+    image: imagePaths.banners.racao,
   },
 ]
 
@@ -40,7 +116,7 @@ export const initialMenuItems = [
     stock: 20,
     promo: false,
     combo: false,
-    image: '/images/racao-caes-adultos.png',
+    image: imagePaths.produtos.racaoCaes,
   },
   {
     id: 'racao-gatos-castrados',
@@ -52,7 +128,7 @@ export const initialMenuItems = [
     stock: 18,
     promo: false,
     combo: false,
-    image: '/images/racao-gatos-castrados.png',
+    image: imagePaths.produtos.racaoGatos,
   },
   {
     id: 'antipulgas-carrapatos',
@@ -64,7 +140,7 @@ export const initialMenuItems = [
     stock: 40,
     promo: true,
     combo: false,
-    image: '/images/antipulgas-pipeta.png',
+    image: imagePaths.produtos.antipulgas,
   },
   {
     id: 'vermifugo',
@@ -76,7 +152,7 @@ export const initialMenuItems = [
     stock: 35,
     promo: false,
     combo: false,
-    image: '/images/vermifugo.png',
+    image: imagePaths.produtos.vermifugo,
   },
   {
     id: 'shampoo-neutro-pet',
@@ -88,19 +164,7 @@ export const initialMenuItems = [
     stock: 28,
     promo: false,
     combo: false,
-    image: '/images/shampoo-pet.png',
-  },
-  {
-    id: 'brinquedo-mordedor',
-    name: 'Brinquedo para roer e distraction',
-    description: 'Resistente, auxília no comportamento e entretenimento seguro.',
-    category: 'produtos',
-    categoryLabel: 'Produto pet',
-    price: 34.9,
-    stock: 22,
-    promo: false,
-    combo: false,
-    image: '/images/brinquedo-pet.png',
+    image: imagePaths.produtos.shampoo,
   },
   {
     id: 'banho-completo-pet',
@@ -112,7 +176,7 @@ export const initialMenuItems = [
     stock: 15,
     promo: false,
     combo: false,
-    image: '/images/banho-completo.png',
+    image: imagePaths.servicos.banhoCompleto,
   },
   {
     id: 'pacote-banho-hidratacao',
@@ -124,7 +188,7 @@ export const initialMenuItems = [
     stock: 12,
     promo: true,
     combo: true,
-    image: '/images/banho-hidratacao.png',
+    image: imagePaths.servicos.banhoHidratacao,
   },
   {
     id: 'tosa-higienica',
@@ -136,7 +200,7 @@ export const initialMenuItems = [
     stock: 14,
     promo: false,
     combo: false,
-    image: '/images/tosa-higienica.png',
+    image: imagePaths.servicos.tosaHigienica,
   },
   {
     id: 'consulta-veterinaria',
@@ -148,7 +212,7 @@ export const initialMenuItems = [
     stock: 10,
     promo: false,
     combo: false,
-    image: '/images/consulta-veterinaria.png',
+    image: imagePaths.servicos.consultaVeterinaria,
   },
   {
     id: 'vacinacao-v8-v10',
@@ -160,7 +224,7 @@ export const initialMenuItems = [
     stock: 12,
     promo: false,
     combo: false,
-    image: '/images/vacinacao.png',
+    image: imagePaths.servicos.vacinacao,
   },
   {
     id: 'exames-basicos',
@@ -172,42 +236,6 @@ export const initialMenuItems = [
     stock: 8,
     promo: false,
     combo: false,
-    image: '/images/exames-basicos.png',
-  },
-  {
-    id: 'promo-banho-semana',
-    name: 'Promoção de banho (dias de semana)',
-    description: 'Valor promocional para banho completo agendado pelo app.',
-    category: 'promocoes',
-    categoryLabel: 'Promoção',
-    price: 59.9,
-    stock: 25,
-    promo: true,
-    combo: false,
-    image: '/images/promo-banho.png',
-  },
-  {
-    id: 'pacote-vacinacao',
-    name: 'Pacote de vacinação',
-    description: 'Combo com vacinas essenciais e antirrábica conforme protocolo.',
-    category: 'promocoes',
-    categoryLabel: 'Promoção',
-    price: 249.9,
-    stock: 6,
-    promo: true,
-    combo: false,
-    image: '/images/pacote-vacinacao.png',
-  },
-  {
-    id: 'kit-petshop-desconto',
-    name: 'Kit petshop (ração + antipulgas)',
-    description: 'Oferta combinada para proteção e nutrição do mês.',
-    category: 'promocoes',
-    categoryLabel: 'Promoção',
-    price: 218.0,
-    stock: 10,
-    promo: true,
-    combo: true,
-    image: '/images/kit-petshop-promo.png',
+    image: imagePaths.servicos.examesLaboratoriais,
   },
 ]

@@ -152,6 +152,9 @@
       const message = document.getElementById('message')
       const currentUrl = document.getElementById('current-url')
       currentUrl.textContent = window.location.href
+      const isViteDevServer =
+        ['localhost', '127.0.0.1'].includes(window.location.hostname) &&
+        window.location.port.startsWith('517')
 
       function isStandalone() {
         return window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true
@@ -202,7 +205,23 @@
         }
       })
 
-      if ('serviceWorker' in navigator && (window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname))) {
+      if (isViteDevServer && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          registrations.forEach((registration) => {
+            registration.unregister()
+          })
+        })
+      }
+
+      if (isViteDevServer && 'caches' in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => {
+            caches.delete(key)
+          })
+        })
+      }
+
+      if (!isViteDevServer && 'serviceWorker' in navigator && (window.isSecureContext || ['localhost', '127.0.0.1'].includes(window.location.hostname))) {
         navigator.serviceWorker.register('/sw.js').catch(() => {})
       }
 

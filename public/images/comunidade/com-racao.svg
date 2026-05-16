@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" width="400" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#022C22"/>
+      <stop offset="100%" stop-color="#052E16"/>
+    </linearGradient>
+    <radialGradient id="atmos" cx="50%" cy="52%" r="52%">
+      <stop offset="0%" stop-color="#16A34A" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#16A34A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tigela-ext" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#16A34A"/>
+      <stop offset="100%" stop-color="#14532D"/>
+    </linearGradient>
+    <linearGradient id="tigela-int" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#15803D"/>
+      <stop offset="100%" stop-color="#166534"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+    <filter id="kibble-soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="400" height="280" rx="14" fill="url(#atmos)"/>
+
+  <!-- Tigela — elemento principal -->
+  <g filter="url(#soft)">
+    <!-- Borda superior (aro) -->
+    <ellipse cx="200" cy="150" rx="108" ry="22" fill="#22C55E"/>
+    <ellipse cx="200" cy="150" rx="100" ry="16" fill="#4ADE80"/>
+    <!-- Corpo da tigela -->
+    <path d="M92,158 Q88,218 200,226 Q312,218 308,158 Z" fill="url(#tigela-ext)"/>
+    <path d="M100,162 Q97,214 200,222 Q303,214 300,162 Z" fill="url(#tigela-int)"/>
+    <!-- Base -->
+    <ellipse cx="200" cy="226" rx="60"  ry="9"   fill="#14532D"/>
+    <ellipse cx="200" cy="226" rx="90"  ry="6"   fill="#166534"/>
+  </g>
+
+  <!-- Ração (kibble) dentro da tigela — formas geométricas limpas -->
+  <g filter="url(#kibble-soft)">
+    <!-- Linha de cima -->
+    <circle cx="168" cy="162" r="11" fill="#F97316"/>
+    <circle cx="200" cy="158" r="12" fill="#EA580C"/>
+    <circle cx="232" cy="162" r="11" fill="#F97316"/>
+    <!-- Linha do meio -->
+    <circle cx="152" cy="182" r="11" fill="#EA580C"/>
+    <circle cx="181" cy="178" r="12" fill="#C2410C"/>
+    <circle cx="210" cy="178" r="12" fill="#EA580C"/>
+    <circle cx="240" cy="182" r="11" fill="#C2410C"/>
+    <!-- Linha de baixo -->
+    <circle cx="167" cy="200" r="10" fill="#F97316"/>
+    <circle cx="196" cy="198" r="11" fill="#EA580C"/>
+    <circle cx="225" cy="200" r="10" fill="#F97316"/>
+  </g>
+
+  <!-- Coração de solidariedade — acima da tigela -->
+  <g transform="translate(200,82)" filter="url(#soft)">
+    <path d="M0,34 Q-40,12 -40,-10 Q-40,-30 -20,-30 Q-8,-30 0,-16 Q8,-30 20,-30 Q40,-30 40,-10 Q40,12 0,34 Z"
+          fill="#EF4444"/>
+    <!-- Brilho -->
+    <path d="M-24,-22 Q-28,-10 -24,-2" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" opacity="0.28"/>
+  </g>
+
+  <!-- Grãos de ração caindo — 4 círculos pequenos em arco -->
+  <circle cx="252" cy="116" r="7" fill="#F97316" opacity="0.7" filter="url(#kibble-soft)"/>
+  <circle cx="266" cy="102" r="6" fill="#EA580C" opacity="0.65" filter="url(#kibble-soft)"/>
+  <circle cx="238" cy="105" r="5" fill="#F97316" opacity="0.55" filter="url(#kibble-soft)"/>
+  <circle cx="276" cy="118" r="5" fill="#C2410C" opacity="0.5" filter="url(#kibble-soft)"/>
+
+  <!-- Patinha — brand mark, sutil -->
+  <g transform="translate(48,246)" opacity="0.12">
+    <ellipse cx="0" cy="7" rx="10" ry="9" fill="white"/>
+    <ellipse cx="-7" cy="0"  rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="-2" cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="4"  cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="9"  cy="0"  rx="4.5" ry="5.5" fill="white"/>
+  </g>
+</svg>

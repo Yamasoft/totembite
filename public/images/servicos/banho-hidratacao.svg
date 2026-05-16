@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 280" width="400" height="280">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F1C2E"/>
+      <stop offset="100%" stop-color="#1A2E44"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="52%" cy="48%" r="48%">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cabo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="cabeca-esc" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+    <filter id="soft" x="-12%" y="-12%" width="124%" height="124%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <rect width="400" height="280" rx="14" fill="url(#bg)"/>
+  <rect width="400" height="280" rx="14" fill="url(#glow)"/>
+
+  <!-- Pelos/linhas de textura de pelagem — fundo sutil -->
+  <g opacity="0.07" stroke="white" stroke-width="1.2" stroke-linecap="round">
+    <path d="M60,210  Q80,190  100,210"/>
+    <path d="M90,235  Q110,215 130,235"/>
+    <path d="M125,215 Q145,195 165,215"/>
+    <path d="M250,210 Q270,190 290,210"/>
+    <path d="M280,235 Q300,215 320,235"/>
+    <path d="M305,215 Q325,195 345,215"/>
+    <path d="M170,248 Q190,228 210,248"/>
+    <path d="M215,250 Q235,230 255,250"/>
+  </g>
+
+  <!-- Escova de grooming — elemento principal, 45° -->
+  <g transform="translate(200,142) rotate(-35)" filter="url(#soft)">
+    <!-- Cabo longo -->
+    <rect x="-10" y="-105" width="20" height="118" rx="10" fill="url(#cabo)"/>
+    <!-- Aro de metal no cabo -->
+    <rect x="-11" y="-18" width="22" height="10" rx="5" fill="#94A3B8"/>
+    <!-- Cabeça da escova -->
+    <rect x="-26" y="14" width="52" height="32" rx="8" fill="url(#cabeca-esc)"/>
+    <!-- Cerdas (11 linhas uniformes) -->
+    <line x1="-18" y1="18" x2="-18" y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-12" y1="16" x2="-12" y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="-6"  y1="15" x2="-6"  y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="0"   y1="14" x2="0"   y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="6"   y1="15" x2="6"   y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="12"  y1="16" x2="12"  y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="18"  y1="18" x2="18"  y2="42" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Brilho no cabo -->
+    <rect x="-7" y="-100" width="5" height="105" rx="2.5" fill="white" opacity="0.2"/>
+  </g>
+
+  <!-- Faíscas de brilho — 3 estrelas geométricas simples -->
+  <!-- Estrela 1 — grande, acima à esquerda -->
+  <g transform="translate(108,82)">
+    <line x1="0" y1="-15" x2="0"  y2="15"  stroke="#FCD34D" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+    <line x1="-15" y1="0" x2="15" y2="0"   stroke="#FCD34D" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+    <line x1="-10" y1="-10" x2="10" y2="10" stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+    <line x1="10" y1="-10"  x2="-10" y2="10" stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
+    <circle r="4" fill="#FDE68A"/>
+  </g>
+  <!-- Estrela 2 — média, direita -->
+  <g transform="translate(312,95)">
+    <line x1="0" y1="-11" x2="0"  y2="11"  stroke="#FCD34D" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+    <line x1="-11" y1="0" x2="11" y2="0"   stroke="#FCD34D" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+    <line x1="-7.5" y1="-7.5" x2="7.5" y2="7.5" stroke="#FCD34D" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+    <line x1="7.5"  y1="-7.5" x2="-7.5" y2="7.5" stroke="#FCD34D" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
+    <circle r="3" fill="#FDE68A"/>
+  </g>
+  <!-- Estrela 3 — pequena, canto superior -->
+  <g transform="translate(340,42)">
+    <line x1="0" y1="-8" x2="0"  y2="8"   stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="-8" y1="0" x2="8"  y2="0"   stroke="#FCD34D" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <circle r="2.5" fill="#FDE68A" opacity="0.85"/>
+  </g>
+
+  <!-- Gotinhas de hidratação — 3 shapes teardrop limpos -->
+  <path d="M62,115 Q59,126 62,132 Q65,137 68,132 Q71,126 68,115 Q65,111 62,115 Z"
+        fill="#93C5FD" opacity="0.55"/>
+  <path d="M344,148 Q341,157 344,163 Q347,167 350,163 Q353,157 350,148 Q347,144 344,148 Z"
+        fill="#93C5FD" opacity="0.5"/>
+  <path d="M358,105 Q355,113 358,118 Q361,122 364,118 Q367,113 364,105 Q361,101 358,105 Z"
+        fill="#93C5FD" opacity="0.45"/>
+
+  <!-- Patinha sutil — canto inferior esquerdo -->
+  <g transform="translate(48,246)" opacity="0.12">
+    <ellipse cx="0" cy="7" rx="10" ry="9" fill="white"/>
+    <ellipse cx="-7" cy="0"  rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="-2" cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="4"  cy="-6" rx="4.5" ry="5.5" fill="white"/>
+    <ellipse cx="9"  cy="0"  rx="4.5" ry="5.5" fill="white"/>
+  </g>
+</svg>

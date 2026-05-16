@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 240" width="600" height="240">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#022C22"/>
+      <stop offset="50%" stop-color="#065F46"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <radialGradient id="atmos" cx="22%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="escudo" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#34D399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="600" height="240" rx="16" fill="url(#bg)"/>
+  <rect width="600" height="240" rx="16" fill="url(#atmos)"/>
+
+  <!-- Escudo — esquerda, responsável pelo aspecto visual -->
+  <g transform="translate(138,120)" filter="url(#soft)">
+    <path d="M0,-88 L68,-60 L68,14 Q68,72 0,94 Q-68,72 -68,14 L-68,-60 Z" fill="url(#escudo)"/>
+    <path d="M0,-76 L58,-52 L58,12 Q58,63 0,82 Q-58,63 -58,12 L-58,-52 Z"
+          fill="none" stroke="white" stroke-width="1.5" opacity="0.25"/>
+    <!-- Cruz médica limpa -->
+    <rect x="-10" y="-24" width="20" height="52" rx="6" fill="white" opacity="0.95"/>
+    <rect x="-26" y="-8"  width="52" height="20" rx="6" fill="white" opacity="0.95"/>
+    <!-- Brilho escudo -->
+    <path d="M-46,-52 Q-52,-30 -48,-8" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" opacity="0.2"/>
+  </g>
+
+  <!-- Separador vertical -->
+  <line x1="240" y1="36" x2="240" y2="204" stroke="white" stroke-width="1" opacity="0.12"/>
+
+  <!-- Área tipográfica — lado direito, espaçosa -->
+  <!-- Tag -->
+  <rect x="268" y="42" width="88" height="22" rx="11" fill="#10B981" opacity="0.25"/>
+  <text x="312" y="57" text-anchor="middle"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="11" font-weight="600"
+        fill="#6EE7B7" letter-spacing="1.5">VACINAÇÃO</text>
+
+  <!-- Título -->
+  <text x="268" y="100"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="800"
+        fill="white" letter-spacing="-0.5">Pacote de Vacinação</text>
+  <text x="268" y="132"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="22" font-weight="600"
+        fill="#A7F3D0" letter-spacing="-0.3">com Condição Especial</text>
+
+  <!-- Descrição -->
+  <text x="268" y="162"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="13"
+        fill="#D1FAE5" opacity="0.8">Combine V8/V10 e antirrábica com orientação pós-vacina.</text>
+
+  <!-- Preço destaque — sem caixa, tipografia pura -->
+  <text x="268" y="200"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="12"
+        fill="#6EE7B7" opacity="0.75">pacote a partir de</text>
+  <text x="268" y="222"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900"
+        fill="white">R$ 189,90</text>
+
+  <!-- V8/V10 — badge discreto, sobreposição no escudo -->
+  <text x="138" y="140" text-anchor="middle"
+        font-family="'Segoe UI', Arial, sans-serif" font-size="13" font-weight="700"
+        fill="white" opacity="0.0">V8/V10</text>
+
+  <!-- Pontos decorativos sutis -->
+  <circle cx="556" cy="42"  r="3" fill="#34D399" opacity="0.3"/>
+  <circle cx="574" cy="62"  r="2" fill="#34D399" opacity="0.25"/>
+  <circle cx="548" cy="64"  r="2" fill="#34D399" opacity="0.25"/>
+</svg>

@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,6 +13,8 @@ const legacyJsonPath = join(workspaceDataDir, 'totem-bite-store.json')
 const sqlitePath = process.env.FARMAVET_DB_PATH || 'C:/Farmavet/data/farmavet.db'
 const serverPort = parseInt(process.env.PORT || '3002', 10)
 const authSecret = process.env.ADMIN_AUTH_SECRET || 'farmavet-local-secret'
+const customerAuthSecret = process.env.CUSTOMER_AUTH_SECRET || 'farmavet-customer-secret-dev'
+const authMode = process.env.AUTH_MODE || 'test'
 const defaultAdminUser = process.env.ADMIN_USER || 'admin'
 const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123'
 const appTimeZone = 'America/Sao_Paulo'
@@ -144,6 +146,63 @@ const migrations = [
     id: '003b_appointments_pet_id',
     sql: `
       ALTER TABLE appointments ADD COLUMN pet_id TEXT REFERENCES pets(id);
+    `,
+  },
+  {
+    id: '005_product_ativo',
+    sql: `
+      ALTER TABLE products ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
+  {
+    id: '006_product_tipo',
+    sql: `
+      ALTER TABLE products ADD COLUMN tipo TEXT NOT NULL DEFAULT 'produto';
+      ALTER TABLE products ADD COLUMN duracao_min INTEGER;
+      UPDATE products SET tipo = 'servico' WHERE category IN ('banho_tosa', 'clinica', 'comunidade');
+    `,
+  },
+  {
+    id: '004_auth',
+    sql: `
+      CREATE TABLE IF NOT EXISTS customers (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        phone         TEXT    NOT NULL UNIQUE,
+        name          TEXT,
+        verified      INTEGER NOT NULL DEFAULT 0,
+        created_at    TEXT    NOT NULL,
+        updated_at    TEXT,
+        last_login_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+
+      CREATE TABLE IF NOT EXISTS otp_codes (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        phone      TEXT    NOT NULL,
+        code_hash  TEXT    NOT NULL,
+        expires_at TEXT    NOT NULL,
+        attempts   INTEGER NOT NULL DEFAULT 0,
+        used_at    TEXT,
+        created_at TEXT    NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_otp_phone_expires ON otp_codes(phone, expires_at);
+
+      CREATE TABLE IF NOT EXISTS customer_sessions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id  INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+        token_hash   TEXT    NOT NULL UNIQUE,
+        expires_at   TEXT    NOT NULL,
+        created_at   TEXT    NOT NULL,
+        last_used_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON customer_sessions(token_hash);
+
+      CREATE TABLE IF NOT EXISTS test_phones (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        phone      TEXT NOT NULL UNIQUE,
+        label      TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      );
     `,
   },
 ]
@@ -296,6 +355,141 @@ function verifyToken(token) {
 
   return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
 }
+
+// ── OTP / Customer auth ────────────────────────────────────────────────────
+
+const OTP_TTL_MINUTES = 10
+const OTP_MAX_ATTEMPTS = 3
+const OTP_RATE_LIMIT_COUNT = 3
+const OTP_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000 // 1 hora
+const SESSION_TTL_DAYS = 30
+
+// Timestamp list per phone — keeps only entries within the rate-limit window.
+const otpRequestLog = new Map()
+
+function normalizePhoneNational(raw) {
+  let d = String(raw || '').replace(/\D/g, '')
+  if (d.length >= 12 && d.startsWith('55')) d = d.slice(2)
+  return d.slice(0, 11)
+}
+
+function normalizePhone(raw) {
+  const phone = normalizePhoneNational(raw)
+  return isNationalMobilePhone(phone) ? phone : null
+}
+
+function isNationalMobilePhone(phone) {
+  return /^\d{11}$/.test(phone)
+}
+
+function normalizePersistedPhones() {
+  const updates = [
+    ['pets', 'id', 'responsavel_tel'],
+    ['appointments', 'id', 'cliente_telefone'],
+    ['orders', 'id', 'phone'],
+    ['customers', 'id', 'phone'],
+    ['test_phones', 'id', 'phone'],
+    ['otp_codes', 'id', 'phone'],
+  ]
+
+  for (const [table, idColumn, phoneColumn] of updates) {
+    const rows = db.prepare(`SELECT ${idColumn} AS id, ${phoneColumn} AS phone FROM ${table}`).all()
+    const update = db.prepare(`UPDATE ${table} SET ${phoneColumn} = ? WHERE ${idColumn} = ?`)
+
+    for (const row of rows) {
+      const normalized = normalizePhoneNational(row.phone)
+      if (normalized && normalized !== row.phone) {
+        try {
+          update.run(normalized, row.id)
+        } catch (error) {
+          console.warn(`[PHONE] Nao foi possivel normalizar ${table}.${phoneColumn} id=${row.id}: ${error.message}`)
+        }
+      }
+    }
+  }
+}
+
+function generateOtpCode() {
+  // 6 dígitos com padding zero (000000–999999)
+  return String(Math.floor(Math.random() * 1_000_000)).padStart(6, '0')
+}
+
+function hashOtp(code, phone) {
+  return createHmac('sha256', customerAuthSecret).update(`${phone}:${code}`).digest('hex')
+}
+
+function signCustomerToken(customerId) {
+  const payload = `cust.${customerId}.${nowTimestampMs()}.${randomBytes(12).toString('hex')}`
+  const sig = createHmac('sha256', customerAuthSecret).update(payload).digest('hex')
+  return `${payload}.${sig}`
+}
+
+function verifyCustomerToken(token) {
+  if (!token) return false
+  const parts = token.split('.')
+  if (parts.length < 5) return false
+  const sig = parts.pop()
+  const payload = parts.join('.')
+  const expected = createHmac('sha256', customerAuthSecret).update(payload).digest('hex')
+  try {
+    return timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
+function requireCustomerAuth(request, response) {
+  const authHeader = request.headers.authorization || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+
+  if (!verifyCustomerToken(token)) {
+    unauthorized(response)
+    return null
+  }
+
+  const tokenHash = createHmac('sha256', customerAuthSecret).update(token).digest('hex')
+  const session = db
+    .prepare(`SELECT * FROM customer_sessions WHERE token_hash = ? AND expires_at > ?`)
+    .get(tokenHash, nowIso())
+
+  if (!session) {
+    unauthorized(response)
+    return null
+  }
+
+  db.prepare(`UPDATE customer_sessions SET last_used_at = ? WHERE id = ?`).run(nowIso(), session.id)
+  return session
+}
+
+function isRateLimited(phone) {
+  const now = Date.now()
+  const window = OTP_RATE_LIMIT_WINDOW_MS
+  const entries = (otpRequestLog.get(phone) || []).filter((ts) => now - ts < window)
+  if (entries.length >= OTP_RATE_LIMIT_COUNT) return true
+  entries.push(now)
+  otpRequestLog.set(phone, entries)
+  return false
+}
+
+function addOtpIsoMinutes(minutes) {
+  const ms = Date.now() + minutes * 60 * 1000
+  const date = new Date(ms)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: appTimeZone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const v = Object.fromEntries(parts.map((p) => [p.type, p.value]))
+  const off = formatOffset(timeZoneOffsetMinutes(date, appTimeZone))
+  return `${v.year}-${v.month}-${v.day}T${v.hour}:${v.minute}:${v.second}${off}`
+}
+
+function sessionExpiresAt() {
+  return addOtpIsoMinutes(SESSION_TTL_DAYS * 24 * 60)
+}
+
+// ── End OTP / Customer auth ────────────────────────────────────────────────
 
 function applyMigrations() {
   db.exec('CREATE TABLE IF NOT EXISTS migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)')
@@ -481,6 +675,7 @@ function importLegacyJsonStore() {
 applyMigrations()
 seedAdmin()
 importLegacyJsonStore()
+normalizePersistedPhones()
 seedProducts()
 seedPromotions()
 
@@ -550,6 +745,9 @@ function mapProduct(row) {
     stock: row.stock,
     promo: Boolean(row.promo),
     combo: Boolean(row.combo),
+    ativo: row.ativo === undefined ? true : Boolean(row.ativo),
+    tipo: row.tipo ?? 'produto',
+    duracao_min: row.duracao_min ?? null,
     image: row.image,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -568,8 +766,11 @@ function mapPromotion(row) {
   }
 }
 
-function listProducts() {
-  return db.prepare('SELECT * FROM products ORDER BY created_at DESC').all().map(mapProduct)
+function listProducts(forAdmin = false) {
+  const sql = forAdmin
+    ? 'SELECT * FROM products ORDER BY name ASC'
+    : "SELECT * FROM products WHERE tipo = 'produto' AND ativo = 1 ORDER BY name ASC"
+  return db.prepare(sql).all().map(mapProduct)
 }
 
 function listPromotions() {
@@ -618,13 +819,13 @@ function dashboardSummary() {
 
 const insertProductStatement = db.prepare(`
   INSERT INTO products (
-    id, name, description, category, category_label, price, stock, promo, combo, image, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    id, name, description, category, category_label, price, stock, promo, combo, ativo, tipo, duracao_min, image, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `)
 
 const updateProductStatement = db.prepare(`
   UPDATE products
-  SET name = ?, description = ?, category = ?, category_label = ?, price = ?, stock = ?, promo = ?, combo = ?, image = ?, updated_at = ?
+  SET name = ?, description = ?, category = ?, category_label = ?, price = ?, stock = ?, promo = ?, combo = ?, ativo = ?, tipo = ?, duracao_min = ?, image = ?, updated_at = ?
   WHERE id = ?
 `)
 
@@ -669,7 +870,7 @@ const createOrderTransaction = db.transaction((body) => {
     timestamp,
     body.mode,
     body.customerName,
-    body.phone,
+    normalizePhoneNational(body.phone),
     body.address,
     Number(body.subtotal),
     Number(body.deliveryFee),
@@ -720,7 +921,9 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/products' && request.method === 'GET') {
-      sendJson(response, 200, listProducts())
+      const authHeader = request.headers.authorization || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+      sendJson(response, 200, listProducts(verifyToken(token)))
       return
     }
 
@@ -736,15 +939,40 @@ const server = createServer(async (request, response) => {
         body.category,
         body.categoryLabel,
         Number(body.price),
-        Number(body.stock),
+        Number(body.stock ?? 0),
         body.promo ? 1 : 0,
         body.combo ? 1 : 0,
+        body.ativo === false ? 0 : 1,
+        body.tipo === 'servico' ? 'servico' : 'produto',
+        body.duracao_min ? Number(body.duracao_min) : null,
         body.image,
         timestamp,
         timestamp,
       )
 
       sendJson(response, 201, { ok: true })
+      return
+    }
+
+    if (url.pathname === '/api/products/upload-image' && request.method === 'POST') {
+      if (!requireAuth(request, response)) return
+      const body = await parseBody(request)
+      const { data, name } = body
+
+      if (!data || !name) {
+        sendJson(response, 400, { error: 'data e name são obrigatórios' })
+        return
+      }
+
+      const base64 = data.replace(/^data:image\/\w+;base64,/, '')
+      const buffer = Buffer.from(base64, 'base64')
+      const ext = name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const uploadDir = join(rootDir, 'public', 'images', 'produtos')
+      mkdirSync(uploadDir, { recursive: true })
+      writeFileSync(join(uploadDir, filename), buffer)
+
+      sendJson(response, 200, { path: `/images/produtos/${filename}` })
       return
     }
 
@@ -759,9 +987,12 @@ const server = createServer(async (request, response) => {
         body.category,
         body.categoryLabel,
         Number(body.price),
-        Number(body.stock),
+        Number(body.stock ?? 0),
         body.promo ? 1 : 0,
         body.combo ? 1 : 0,
+        body.ativo === false ? 0 : 1,
+        body.tipo === 'servico' ? 'servico' : 'produto',
+        body.duracao_min ? Number(body.duracao_min) : null,
         body.image,
         nowIso(),
         productId,
@@ -860,14 +1091,24 @@ const server = createServer(async (request, response) => {
 
     // GET /api/pets/lookup?tel=  — público, para o booking flow
     if (url.pathname === '/api/pets/lookup' && request.method === 'GET') {
-      const tel = (url.searchParams.get('tel') || '').replace(/\D/g, '')
-      if (!tel || tel.length < 8) {
+      const rawTel = url.searchParams.get('tel') || ''
+      const tel = normalizePhoneNational(rawTel)
+      if (!tel || tel.length < 10) {
         sendJson(response, 400, { error: 'Telefone inválido.' })
         return
       }
+      if (!isNationalMobilePhone(tel)) {
+        sendJson(response, 400, { error: 'Telefone deve ter 11 dígitos nacionais.' })
+        return
+      }
       const rows = db
-        .prepare(`SELECT * FROM pets WHERE replace(replace(replace(replace(responsavel_tel,' ',''),'-',''),'(',''),')','') LIKE ? AND ativo = 1 ORDER BY nome`)
-        .all(`%${tel}%`)
+        .prepare(`
+          SELECT * FROM pets
+          WHERE ativo = 1
+            AND responsavel_tel = ?
+          ORDER BY nome
+        `)
+        .all(tel)
       sendJson(response, 200, rows)
       return
     }
@@ -886,7 +1127,8 @@ const server = createServer(async (request, response) => {
       if (busca) {
         query += ' AND (nome LIKE ? OR responsavel_nome LIKE ? OR responsavel_tel LIKE ?)'
         const like = `%${busca}%`
-        params.push(like, like, like)
+        const phoneLike = `%${normalizePhoneNational(busca) || busca}%`
+        params.push(like, like, phoneLike)
       }
       query += ' ORDER BY nome ASC'
 
@@ -909,7 +1151,7 @@ const server = createServer(async (request, response) => {
         WHERE (pet_id = ? OR (pet_nome = ? AND cliente_telefone = ?))
         ORDER BY data DESC, hora_inicio DESC
         LIMIT 50
-      `).all(id, pet.nome, pet.responsavel_tel)
+      `).all(id, pet.nome, normalizePhoneNational(pet.responsavel_tel))
 
       sendJson(response, 200, { ...pet, historico: history })
       return
@@ -921,6 +1163,11 @@ const server = createServer(async (request, response) => {
       const body = await parseBody(request)
       if (!body.nome || !body.tipo || !body.responsavel_nome || !body.responsavel_tel) {
         sendJson(response, 400, { error: 'Campos obrigatórios: nome, tipo, responsavel_nome, responsavel_tel.' })
+        return
+      }
+      const responsavelTel = normalizePhoneNational(body.responsavel_tel)
+      if (!isNationalMobilePhone(responsavelTel)) {
+        sendJson(response, 400, { error: 'Telefone deve ter 11 dígitos nacionais.' })
         return
       }
       const id  = `pet-${nowTimestampMs()}-${randomBytes(4).toString('hex')}`
@@ -941,7 +1188,7 @@ const server = createServer(async (request, response) => {
         body.data_nascimento   || '',
         body.cor               || '',
         body.responsavel_nome,
-        body.responsavel_tel,
+        responsavelTel,
         body.responsavel_email || '',
         body.observacoes       || '',
         now, now,
@@ -956,6 +1203,11 @@ const server = createServer(async (request, response) => {
       const id   = decodeURIComponent(petIdMatch[1])
       const body = await parseBody(request)
       const now  = nowIso()
+      const responsavelTel = normalizePhoneNational(body.responsavel_tel ?? '')
+      if (!isNationalMobilePhone(responsavelTel)) {
+        sendJson(response, 400, { error: 'Telefone deve ter 11 dígitos nacionais.' })
+        return
+      }
       const result = db.prepare(`
         UPDATE pets SET
           nome = ?, tipo = ?, raca = ?, porte = ?, sexo = ?,
@@ -972,7 +1224,7 @@ const server = createServer(async (request, response) => {
         body.data_nascimento   ?? '',
         body.cor               ?? '',
         body.responsavel_nome  ?? '',
-        body.responsavel_tel   ?? '',
+        responsavelTel,
         body.responsavel_email ?? '',
         body.observacoes       ?? '',
         now,
@@ -996,6 +1248,37 @@ const server = createServer(async (request, response) => {
     // ── End pets ───────────────────────────────────────────────────────────
 
     // ── Appointments ──────────────────────────────────────────────────────
+
+    // Endpoint público: cliente busca seus próprios agendamentos por telefone
+    if (url.pathname === '/api/appointments/my' && request.method === 'GET') {
+      const rawTel = url.searchParams.get('tel') || ''
+      const tel = normalizePhoneNational(rawTel)
+
+      if (!tel || tel.length < 10) {
+        sendJson(response, 400, { error: 'Parâmetro tel inválido.' })
+        return
+      }
+
+      // Retorna agendamentos dos últimos 30 dias + futuros, ordenados por data/hora
+      // Data atual em Brasília, menos 30 dias
+      const brDate = nowIso().slice(0, 10) // "YYYY-MM-DD" no fuso America/Sao_Paulo
+      const cutoff = new Date(brDate + 'T12:00:00')
+      cutoff.setDate(cutoff.getDate() - 30)
+      const cutoffDate = cutoff.toISOString().slice(0, 10) // YYYY-MM-DD
+
+      const rows = db.prepare(`
+        SELECT id, servico_nome, servico_tipo, profissional,
+               data, hora_inicio, hora_fim, status,
+               pet_nome, pet_tipo, observacoes, created_at
+        FROM appointments
+        WHERE cliente_telefone = ?
+          AND data >= ?
+        ORDER BY data ASC, hora_inicio ASC
+      `).all(tel, cutoffDate)
+
+      sendJson(response, 200, rows)
+      return
+    }
 
     if (url.pathname === '/api/appointments' && request.method === 'GET') {
       if (!requireAuth(request, response)) return
@@ -1030,6 +1313,12 @@ const server = createServer(async (request, response) => {
 
       const duration = SERVICE_DURATION[body.servico_tipo] ?? 60
       const hora_fim = addMinutes(body.hora_inicio, duration)
+      const clienteTelefone = normalizePhoneNational(body.cliente_telefone)
+
+      if (!isNationalMobilePhone(clienteTelefone)) {
+        sendJson(response, 400, { error: 'Telefone deve ter 11 dígitos nacionais.' })
+        return
+      }
 
       if (!hasCapacity(body.data, body.hora_inicio, hora_fim, body.servico_tipo, body.profissional)) {
         sendJson(response, 409, { error: 'Horário sem capacidade disponível para este serviço.' })
@@ -1038,6 +1327,47 @@ const server = createServer(async (request, response) => {
 
       const id = `ag-${nowTimestampMs()}-${randomBytes(4).toString('hex')}`
       const now = nowIso()
+      let petId = body.pet_id || null
+
+      if (!petId) {
+        const existingPet = db.prepare(`
+          SELECT id FROM pets
+          WHERE ativo = 1
+            AND responsavel_tel = ?
+            AND lower(nome) = lower(?)
+          ORDER BY created_at DESC
+          LIMIT 1
+        `).get(clienteTelefone, body.pet_nome)
+
+        if (existingPet) {
+          petId = existingPet.id
+        } else {
+          petId = `pet-${nowTimestampMs()}-${randomBytes(4).toString('hex')}`
+          db.prepare(`
+            INSERT INTO pets
+              (id, nome, tipo, raca, porte, sexo, data_nascimento, cor,
+               responsavel_nome, responsavel_tel, responsavel_email,
+               observacoes, ativo, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)
+          `).run(
+            petId,
+            body.pet_nome,
+            body.pet_tipo,
+            '',
+            body.pet_porte,
+            '',
+            '',
+            '',
+            body.cliente_nome,
+            clienteTelefone,
+            '',
+            body.observacoes || '',
+            now,
+            now,
+          )
+        }
+      }
+
       db.prepare(`
         INSERT INTO appointments
           (id, pet_id, cliente_nome, cliente_telefone, pet_nome, pet_tipo, pet_porte,
@@ -1046,9 +1376,9 @@ const server = createServer(async (request, response) => {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `).run(
         id,
-        body.pet_id || null,
+        petId,
         body.cliente_nome,
-        body.cliente_telefone,
+        clienteTelefone,
         body.pet_nome,
         body.pet_tipo,
         body.pet_porte,
@@ -1148,6 +1478,220 @@ const server = createServer(async (request, response) => {
     }
 
     // ── End appointments ──────────────────────────────────────────────────
+
+    // ── Auth OTP ──────────────────────────────────────────────────────────
+
+    if (url.pathname === '/api/auth/otp/send' && request.method === 'POST') {
+      const body = await parseBody(request)
+      const phone = normalizePhone(body.phone)
+
+      // Resposta genérica independente do resultado — não revela se número existe
+      const genericOk = () => sendJson(response, 200, { sent: true })
+
+      if (!phone) {
+        genericOk()
+        return
+      }
+
+      if (isRateLimited(phone)) {
+        genericOk()
+        return
+      }
+
+      if (authMode === 'test') {
+        const allowed = db.prepare('SELECT id FROM test_phones WHERE phone = ?').get(phone)
+        if (!allowed) {
+          genericOk()
+          return
+        }
+      }
+
+      const code = generateOtpCode()
+      const codeHash = hashOtp(code, phone)
+      const expiresAt = addOtpIsoMinutes(OTP_TTL_MINUTES)
+      const timestamp = nowIso()
+
+      // Invalida OTPs anteriores não utilizados do mesmo número
+      db.prepare(`UPDATE otp_codes SET used_at = ? WHERE phone = ? AND used_at IS NULL`).run(timestamp, phone)
+
+      db.prepare(`
+        INSERT INTO otp_codes (phone, code_hash, expires_at, attempts, created_at)
+        VALUES (?, ?, ?, 0, ?)
+      `).run(phone, codeHash, expiresAt, timestamp)
+
+      if (authMode === 'test') {
+        console.log(`\n[AUTH TEST] OTP para ${phone}: ${code}  (válido até ${expiresAt})\n`)
+      }
+
+      genericOk()
+      return
+    }
+
+    if (url.pathname === '/api/auth/otp/verify' && request.method === 'POST') {
+      const body = await parseBody(request)
+      const phone = normalizePhone(body.phone)
+      const code = String(body.code || '').trim()
+
+      if (!phone || !code) {
+        sendJson(response, 400, { error: 'Telefone e código são obrigatórios.' })
+        return
+      }
+
+      const otpRow = db.prepare(`
+        SELECT * FROM otp_codes
+        WHERE phone = ?
+          AND used_at IS NULL
+          AND expires_at > ?
+          AND attempts < ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `).get(phone, nowIso(), OTP_MAX_ATTEMPTS)
+
+      // Incrementa tentativas antes de validar — evita timing oracle
+      if (otpRow) {
+        db.prepare(`UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?`).run(otpRow.id)
+      }
+
+      const expectedHash = hashOtp(code, phone)
+      const valid = otpRow && otpRow.code_hash === expectedHash
+
+      if (!valid) {
+        sendJson(response, 401, { error: 'Código inválido ou expirado.' })
+        return
+      }
+
+      // Marca OTP como utilizado
+      db.prepare(`UPDATE otp_codes SET used_at = ? WHERE id = ?`).run(nowIso(), otpRow.id)
+
+      // Upsert cliente
+      const now = nowIso()
+      let customer = db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone)
+
+      if (!customer) {
+        db.prepare(`
+          INSERT INTO customers (phone, verified, created_at, updated_at)
+          VALUES (?, 1, ?, ?)
+        `).run(phone, now, now)
+        customer = db.prepare('SELECT * FROM customers WHERE phone = ?').get(phone)
+      } else {
+        db.prepare(`UPDATE customers SET verified = 1, last_login_at = ?, updated_at = ? WHERE id = ?`)
+          .run(now, now, customer.id)
+        customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(customer.id)
+      }
+
+      // Cria sessão
+      const token = signCustomerToken(customer.id)
+      const tokenHash = createHmac('sha256', customerAuthSecret).update(token).digest('hex')
+      db.prepare(`
+        INSERT INTO customer_sessions (customer_id, token_hash, expires_at, created_at)
+        VALUES (?, ?, ?, ?)
+      `).run(customer.id, tokenHash, sessionExpiresAt(), now)
+
+      sendJson(response, 200, {
+        token,
+        customer: {
+          id: customer.id,
+          phone: customer.phone,
+          name: customer.name,
+          verified: Boolean(customer.verified),
+        },
+      })
+      return
+    }
+
+    if (url.pathname === '/api/auth/me' && request.method === 'GET') {
+      const session = requireCustomerAuth(request, response)
+      if (!session) return
+
+      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(session.customer_id)
+      if (!customer) {
+        sendJson(response, 404, { error: 'Cliente não encontrado.' })
+        return
+      }
+
+      sendJson(response, 200, {
+        id: customer.id,
+        phone: customer.phone,
+        name: customer.name,
+        verified: Boolean(customer.verified),
+        createdAt: customer.created_at,
+        lastLoginAt: customer.last_login_at,
+      })
+      return
+    }
+
+    if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
+      const authHeader = request.headers.authorization || ''
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+
+      if (token) {
+        const tokenHash = createHmac('sha256', customerAuthSecret).update(token).digest('hex')
+        db.prepare('DELETE FROM customer_sessions WHERE token_hash = ?').run(tokenHash)
+      }
+
+      sendJson(response, 200, { ok: true })
+      return
+    }
+
+    // ── End Auth OTP ──────────────────────────────────────────────────────
+
+    // ── Admin: whitelist test_phones ──────────────────────────────────────
+
+    if (url.pathname === '/api/admin/test-phones' && request.method === 'GET') {
+      if (!requireAuth(request, response)) return
+      const rows = db.prepare('SELECT * FROM test_phones ORDER BY created_at DESC').all()
+      sendJson(response, 200, rows.map((r) => ({
+        id: r.id,
+        phone: r.phone,
+        label: r.label,
+        createdAt: r.created_at,
+      })))
+      return
+    }
+
+    if (url.pathname === '/api/admin/test-phones' && request.method === 'POST') {
+      if (!requireAuth(request, response)) return
+      const body = await parseBody(request)
+      const phone = normalizePhone(body.phone)
+
+      if (!phone) {
+        sendJson(response, 400, { error: 'Telefone inválido.' })
+        return
+      }
+
+      const label = String(body.label || '').trim()
+      const existing = db.prepare('SELECT id FROM test_phones WHERE phone = ?').get(phone)
+
+      if (existing) {
+        sendJson(response, 409, { error: 'Telefone já está na whitelist.' })
+        return
+      }
+
+      const result = db.prepare(`
+        INSERT INTO test_phones (phone, label, created_at) VALUES (?, ?, ?)
+      `).run(phone, label, nowIso())
+
+      sendJson(response, 201, { id: result.lastInsertRowid, phone, label })
+      return
+    }
+
+    const testPhoneDeleteMatch = url.pathname.match(/^\/api\/admin\/test-phones\/(\d+)$/)
+    if (testPhoneDeleteMatch && request.method === 'DELETE') {
+      if (!requireAuth(request, response)) return
+      const id = Number(testPhoneDeleteMatch[1])
+      const result = db.prepare('DELETE FROM test_phones WHERE id = ?').run(id)
+
+      if (result.changes === 0) {
+        sendJson(response, 404, { error: 'Telefone não encontrado.' })
+        return
+      }
+
+      response.writeHead(204)
+      response.end()
+      return
+    }
+
+    // ── End Admin: whitelist test_phones ──────────────────────────────────
 
     notFound(response)
   } catch (error) {
