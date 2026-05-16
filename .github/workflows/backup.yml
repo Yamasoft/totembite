@@ -1,0 +1,26 @@
+name: Backup diário do banco
+
+on:
+  schedule:
+    # Todo dia às 03:00 UTC (00:00 Brasília)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # permite rodar manualmente pelo GitHub
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar backup do Railway
+        run: |
+          curl --fail --silent --show-error \
+            -H "x-backup-secret: ${{ secrets.FARMAVET_BACKUP_SECRET }}" \
+            "${{ secrets.FARMAVET_RAILWAY_URL }}/api/admin/backup/download" \
+            -o "farmavet-$(date +%Y-%m-%d).db"
+
+      - name: Upload como artefato do GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: farmavet-backup-${{ github.run_number }}-${{ github.run_attempt }}
+          path: "farmavet-*.db"
+          retention-days: 30
+          if-no-files-found: error

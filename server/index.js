@@ -18,6 +18,8 @@ const authMode = process.env.AUTH_MODE || 'test'
 const defaultAdminUser = process.env.ADMIN_USER || 'admin'
 const defaultAdminPassword = process.env.ADMIN_PASSWORD || 'admin123'
 const appTimeZone = 'America/Sao_Paulo'
+const ADMIN_TOKEN_TTL_MS = parseInt(process.env.ADMIN_TOKEN_TTL_HOURS || '12', 10) * 60 * 60 * 1000
+const BACKUP_SECRET = process.env.BACKUP_SECRET || ''
 
 mkdirSync(workspaceDataDir, { recursive: true })
 mkdirSync(dirname(sqlitePath), { recursive: true })
@@ -339,21 +341,46 @@ function signToken(username) {
 }
 
 function verifyToken(token) {
-  if (!token) {
-    return false
-  }
-
+  if (!token) return false
   const parts = token.split('.')
-
-  if (parts.length < 4) {
-    return false
-  }
-
+  if (parts.length < 4) return false
   const signature = parts.pop()
   const payload = parts.join('.')
   const expected = createHmac('sha256', authSecret).update(payload).digest('hex')
+  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return false
+  // parts = [username, issuedAtMs, randomHex] — check TTL
+  const issuedAt = parseInt(parts[1], 10)
+  if (isNaN(issuedAt) || Date.now() - issuedAt > ADMIN_TOKEN_TTL_MS) return false
+  return true
+}
 
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+// ── Login rate limiting ────────────────────────────────────────────────────
+
+const loginFailureLog = new Map() // ip -> number[]  (timestamps of failures)
+const LOGIN_MAX_FAILURES = 5
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000 // 15 minutes
+
+function getClientIp(request) {
+  const fwd = request.headers['x-forwarded-for']
+  return fwd ? fwd.split(',')[0].trim() : (request.socket?.remoteAddress || 'unknown')
+}
+
+function isLoginLocked(ip) {
+  const now = Date.now()
+  const recent = (loginFailureLog.get(ip) || []).filter(t => now - t < LOGIN_LOCKOUT_MS)
+  loginFailureLog.set(ip, recent)
+  return recent.length >= LOGIN_MAX_FAILURES
+}
+
+function recordLoginFailure(ip) {
+  const now = Date.now()
+  const recent = (loginFailureLog.get(ip) || []).filter(t => now - t < LOGIN_LOCKOUT_MS)
+  recent.push(now)
+  loginFailureLog.set(ip, recent)
+}
+
+function clearLoginFailures(ip) {
+  loginFailureLog.delete(ip)
 }
 
 // ── OTP / Customer auth ────────────────────────────────────────────────────
@@ -901,21 +928,26 @@ const server = createServer(async (request, response) => {
     }
 
     if (url.pathname === '/api/admin/login' && request.method === 'POST') {
+      const ip = getClientIp(request)
+      if (isLoginLocked(ip)) {
+        sendJson(response, 429, { error: 'Muitas tentativas de login. Aguarde 15 minutos.' })
+        return
+      }
       const body = await parseBody(request)
       const user = db
         .prepare('SELECT username, password_hash FROM admin_users WHERE username = ?')
         .get(body.username || '')
 
       if (!user || user.password_hash !== hashPassword(body.password || '')) {
+        recordLoginFailure(ip)
         sendJson(response, 401, { error: 'Usuario ou senha invalidos.' })
         return
       }
 
+      clearLoginFailures(ip)
       sendJson(response, 200, {
         token: signToken(user.username),
-        user: {
-          username: user.username,
-        },
+        user: { username: user.username },
       })
       return
     }
@@ -1692,6 +1724,33 @@ const server = createServer(async (request, response) => {
     }
 
     // ── End Admin: whitelist test_phones ──────────────────────────────────
+
+    // ── Admin: backup download ─────────────────────────────────────────────
+    if (url.pathname === '/api/admin/backup/download' && request.method === 'GET') {
+      // Accepts either admin token or dedicated BACKUP_SECRET header
+      const providedSecret = request.headers['x-backup-secret'] || ''
+      const hasValidBackupSecret = BACKUP_SECRET && providedSecret === BACKUP_SECRET
+      if (!hasValidBackupSecret && !requireAuth(request, response)) return
+
+      const tmpPath = `${sqlitePath}.download.tmp`
+      try {
+        await db.backup(tmpPath)
+        const data = readFileSync(tmpPath)
+        unlinkSync(tmpPath)
+        const dateStr = new Date().toISOString().slice(0, 10)
+        response.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="farmavet-backup-${dateStr}.db"`,
+          'Content-Length': data.length,
+          'Access-Control-Allow-Origin': '*',
+        })
+        response.end(data)
+      } catch (err) {
+        sendJson(response, 500, { error: 'Falha ao gerar backup.', detail: err.message })
+      }
+      return
+    }
+    // ── End Admin: backup download ─────────────────────────────────────────
 
     notFound(response)
   } catch (error) {
