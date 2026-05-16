@@ -1,5 +1,7 @@
-﻿[phases.setup]
+﻿providers = ["node"]
+
+[phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [start]
-cmd = "npm run dev -- --host 0.0.0.0 --port $PORT"
+cmd = "npm run start"
