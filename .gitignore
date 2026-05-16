@@ -25,15 +25,18 @@ dist-*/
 vite.config.*.timestamp-*
 vite.config.*.tmp
 
-# Python caches
-__pycache__/
+# Python — legacy backend (server/app.py) and virtual env kept locally but not deployed
+.venv/
+*.py
 *.py[cod]
 *$py.class
+__pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .coverage
 htmlcov/
+server/pix_totemcafe/
 
 # Android / Gradle
 .gradle/

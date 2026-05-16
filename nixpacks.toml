@@ -1,7 +1,13 @@
-﻿providers = ["node"]
+providers = ["node"]
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+# nodejs_20: runtime
+# python3 + gnumake + gcc: required by node-gyp to compile better-sqlite3 native addon
+nixPkgs = ["nodejs_20", "python3", "gnumake", "gcc"]
 
-[start]
-cmd = "npm run start"
+[phases.install]
+cmds = ["npm ci --omit=dev"]
+
+[phases.build]
+# Frontend is served from Cloudflare Pages — no Vite build needed on Railway
+cmds = []
